@@ -74,8 +74,12 @@ function renderPrimaryContentForm() {
     
     container.innerHTML = `
         <div class="asset-form-item primary-content-form">
-            <h3>Primary Content</h3>
-            <div class="asset-form-grid">
+            <h3 class="collapsible-header" onclick="togglePrimaryContentForm()">
+                <span>Primary Content</span>
+                <span class="collapse-icon">▶</span>
+            </h3>
+            <div class="primary-content-form-body" style="display: none;">
+                <div class="asset-form-grid">
                 <div class="form-group">
                     <label for="primary-type">Type:</label>
                     <select id="primary-type" onchange="updatePrimaryContent('type', this.value)">
@@ -118,9 +122,25 @@ function renderPrimaryContentForm() {
                     <input type="number" id="primary-verticalPadding" value="${pc.verticalPadding}" 
                         min="-100" max="100" onchange="updatePrimaryContent('verticalPadding', parseInt(this.value) || 0)">
                 </div>
+                </div>
             </div>
         </div>
     `;
+}
+
+function togglePrimaryContentForm() {
+    const formBody = document.querySelector('.primary-content-form-body');
+    const collapseIcon = document.querySelector('.primary-content-form .collapse-icon');
+    
+    if (formBody.style.display === 'none') {
+        formBody.style.display = 'block';
+        collapseIcon.textContent = '▼';
+        collapseIcon.style.transform = 'rotate(0deg)';
+    } else {
+        formBody.style.display = 'none';
+        collapseIcon.textContent = '▶';
+        collapseIcon.style.transform = 'rotate(0deg)';
+    }
 }
 
 function updatePrimaryContent(property, value) {
@@ -393,10 +413,11 @@ function drawAnnotations(svg, asset, pos, playerWidth, playerHeight) {
     const anchorPosition = asset.anchorPosition || 'topLeft';
     const horizontalPadding = asset.horizontalPadding || 0;
     const verticalPadding = asset.verticalPadding || 0;
+    const scale = asset.scale !== undefined ? asset.scale : 100;
     
     // Draw horizontal padding annotation
-    // Show annotation if padding is not 0 (always show padding annotations)
-    if (horizontalPadding !== 0) {
+    // Show annotation if padding is not 0 OR if scale is not 100%
+    if (horizontalPadding !== 0 || scale !== 100) {
         let x1, x2, y, textX, textY;
         
         // Determine which side the padding is on based on anchorPosition
@@ -438,8 +459,8 @@ function drawAnnotations(svg, asset, pos, playerWidth, playerHeight) {
     }
     
     // Draw vertical padding annotation
-    // Show annotation if padding is not 0 (always show padding annotations)
-    if (verticalPadding !== 0) {
+    // Show annotation if padding is not 0 OR if scale is not 100%
+    if (verticalPadding !== 0 || scale !== 100) {
         let x, y1, y2, textX, textY;
         
         // Determine which side the padding is on based on anchorPosition
@@ -527,4 +548,5 @@ function updateJSON() {
 window.updateAsset = updateAsset;
 window.removeAsset = removeAsset;
 window.updatePrimaryContent = updatePrimaryContent;
+window.togglePrimaryContentForm = togglePrimaryContentForm;
 
