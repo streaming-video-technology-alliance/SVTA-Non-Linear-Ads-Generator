@@ -1,0 +1,24 @@
+{
+  "name": "svta-non-linear-generator",
+  "version": "1.0.0",
+  "description": "SVTA Non-Linear Ad Layout Generator - Preview and generate non-linear video ad layouts",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "svta",
+    "ad",
+    "layout",
+    "generator",
+    "hls"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
+
+

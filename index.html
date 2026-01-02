@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVTA Non-Linear Ad Layout Generator</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Preview Player Section -->
+        <section class="preview-section">
+            <h2>Preview Player</h2>
+            <div class="player-container">
+                <div id="previewPlayer" class="preview-player">
+                    <div id="primaryContent" class="primary-content">
+                        <div class="content-label">Primary Content</div>
+                    </div>
+                    <div id="overlayContainer" class="overlay-container"></div>
+                    <svg id="annotationSvg" class="annotation-svg"></svg>
+                </div>
+            </div>
+        </section>
+
+        <!-- Primary Content Section (placeholder) -->
+        <section class="primary-content-section">
+            <h2>Primary Content</h2>
+            <div class="primary-content-area"></div>
+        </section>
+
+        <!-- Asset Form Section -->
+        <section class="asset-form-section">
+            <h2>Asset Form</h2>
+            <div class="form-controls">
+                <div class="form-group">
+                    <label for="adType">adType:</label>
+                    <select id="adType" class="form-control">
+                        <option value="linear">linear</option>
+                        <option value="multiView">multiView</option>
+                        <option value="overlay" selected>overlay</option>
+                        <option value="lowerThirdOverlay">lowerThirdOverlay</option>
+                        <option value="squeezebackFrame">squeezebackFrame</option>
+                        <option value="squeezebackDoubleBox">squeezebackDoubleBox</option>
+                        <option value="squeezebackLShape">squeezebackLShape</option>
+                        <option value="pauseAd">pauseAd</option>
+                    </select>
+                </div>
+                <button id="addAssetBtn" class="btn-primary">ADD ASSET</button>
+            </div>
+            <div id="assetForms" class="asset-forms-container"></div>
+        </section>
+
+        <!-- Asset List Preview Section -->
+        <section class="asset-preview-section">
+            <h2>Asset List Preview</h2>
+            <textarea id="jsonPreview" class="json-preview" readonly></textarea>
+        </section>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
