@@ -54,6 +54,9 @@ function initializeApp() {
         }, 100);
     });
     
+    // Render primary content form
+    renderPrimaryContentForm();
+    
     // Initial render
     updateJSON();
     renderPreview();
@@ -61,6 +64,67 @@ function initializeApp() {
 
 function handleAdTypeChange(e) {
     state.adType = e.target.value;
+    updateJSON();
+    renderPreview();
+}
+
+function renderPrimaryContentForm() {
+    const container = document.getElementById('primaryContentForm');
+    const pc = state.primaryContent;
+    
+    container.innerHTML = `
+        <div class="asset-form-item primary-content-form">
+            <h3>Primary Content</h3>
+            <div class="asset-form-grid">
+                <div class="form-group">
+                    <label for="primary-type">Type:</label>
+                    <select id="primary-type" onchange="updatePrimaryContent('type', this.value)">
+                        ${mimeTypes.map(type => 
+                            `<option value="${type}" ${pc.type === type ? 'selected' : ''}>${type}</option>`
+                        ).join('')}
+                        <option value="video" ${pc.type === 'video' ? 'selected' : ''}>video</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="primary-anchorPosition">anchorPosition:</label>
+                    <select id="primary-anchorPosition" onchange="updatePrimaryContent('anchorPosition', this.value)">
+                        ${anchorPositions.map(ap => 
+                            `<option value="${ap.value}" ${pc.anchorPosition === ap.value ? 'selected' : ''}>${ap.label}</option>`
+                        ).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="primary-zDepth">zDepth:</label>
+                    <input type="number" id="primary-zDepth" value="${pc.zDepth}" 
+                        min="0" onchange="updatePrimaryContent('zDepth', parseInt(this.value) || 0)">
+                </div>
+                <div class="form-group">
+                    <label for="primary-volume">volume:</label>
+                    <input type="number" id="primary-volume" value="${pc.volume}" 
+                        min="0" max="100" onchange="updatePrimaryContent('volume', parseInt(this.value) || 0)">
+                </div>
+                <div class="form-group">
+                    <label for="primary-scale">scale:</label>
+                    <input type="number" id="primary-scale" value="${pc.scale}" 
+                        min="0" max="100" onchange="updatePrimaryContent('scale', parseInt(this.value) || 0)">
+                </div>
+                <div class="form-group">
+                    <label for="primary-horizontalPadding">horizontalPadding:</label>
+                    <input type="number" id="primary-horizontalPadding" value="${pc.horizontalPadding}" 
+                        min="-100" max="100" onchange="updatePrimaryContent('horizontalPadding', parseInt(this.value) || 0)">
+                </div>
+                <div class="form-group">
+                    <label for="primary-verticalPadding">verticalPadding:</label>
+                    <input type="number" id="primary-verticalPadding" value="${pc.verticalPadding}" 
+                        min="-100" max="100" onchange="updatePrimaryContent('verticalPadding', parseInt(this.value) || 0)">
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function updatePrimaryContent(property, value) {
+    state.primaryContent[property] = value;
     updateJSON();
     renderPreview();
 }
@@ -259,6 +323,7 @@ function calculatePosition(asset, playerWidth, playerHeight) {
 
 function renderPreview() {
     const player = document.getElementById('previewPlayer');
+    const primaryContent = document.getElementById('primaryContent');
     const overlayContainer = document.getElementById('overlayContainer');
     const svg = document.getElementById('annotationSvg');
     
@@ -273,6 +338,14 @@ function renderPreview() {
     // Set SVG dimensions
     svg.setAttribute('width', playerWidth);
     svg.setAttribute('height', playerHeight);
+    
+    // Apply primaryContent properties
+    const primaryPos = calculatePosition(state.primaryContent, playerWidth, playerHeight);
+    primaryContent.style.left = `${primaryPos.left}px`;
+    primaryContent.style.top = `${primaryPos.top}px`;
+    primaryContent.style.width = `${primaryPos.width}px`;
+    primaryContent.style.height = `${primaryPos.height}px`;
+    primaryContent.style.zIndex = state.primaryContent.zDepth || 0;
     
     // Sort assets by zDepth
     const sortedAssets = [...state.assets].sort((a, b) => {
@@ -309,6 +382,11 @@ function renderPreview() {
             drawAnnotations(svg, asset, pos, playerWidth, playerHeight);
         }
     });
+    
+    // Draw annotations for primaryContent if not at 100% scale or with padding
+    if (state.primaryContent.scale !== 100 || state.primaryContent.horizontalPadding !== 0 || state.primaryContent.verticalPadding !== 0) {
+        drawAnnotations(svg, state.primaryContent, primaryPos, playerWidth, playerHeight);
+    }
 }
 
 function drawAnnotations(svg, asset, pos, playerWidth, playerHeight) {
@@ -448,4 +526,5 @@ function updateJSON() {
 // Make functions available globally for inline event handlers
 window.updateAsset = updateAsset;
 window.removeAsset = removeAsset;
+window.updatePrimaryContent = updatePrimaryContent;
 
