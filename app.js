@@ -51,6 +51,7 @@ function initializeApp() {
         clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(() => {
             renderPreview();
+            adjustPreviewHeight();
         }, 100);
     });
     
@@ -60,6 +61,7 @@ function initializeApp() {
     // Initial render
     updateJSON();
     renderPreview();
+    adjustPreviewHeight();
 }
 
 function handleAdTypeChange(e) {
@@ -141,6 +143,9 @@ function togglePrimaryContentForm() {
         collapseIcon.textContent = '▶';
         collapseIcon.style.transform = 'rotate(0deg)';
     }
+    
+    // Adjust preview height after toggle
+    setTimeout(adjustPreviewHeight, 0);
 }
 
 function updatePrimaryContent(property, value) {
@@ -168,10 +173,12 @@ function handleAddAsset() {
     renderAssetForm(newAsset, state.assets.length - 1);
     updateJSON();
     renderPreview();
+    adjustPreviewHeight();
 }
 
 function renderAssetForm(asset, index) {
     const container = document.getElementById('assetForms');
+    const addAssetBtn = document.getElementById('addAssetBtn');
     const formItem = document.createElement('div');
     formItem.className = 'asset-form-item';
     formItem.id = `asset-form-${index}`;
@@ -236,7 +243,12 @@ function renderAssetForm(asset, index) {
         <button class="btn-danger" onclick="removeAsset(${index})">Remove Asset</button>
     `;
     
-    container.appendChild(formItem);
+    // Insert the form before the ADD ASSET button to keep button at bottom
+    if (addAssetBtn) {
+        container.insertBefore(formItem, addAssetBtn);
+    } else {
+        container.appendChild(formItem);
+    }
 }
 
 function updateAsset(index, property, value) {
@@ -244,25 +256,54 @@ function updateAsset(index, property, value) {
         state.assets[index][property] = value;
         updateJSON();
         renderPreview();
+        // Use setTimeout to allow DOM to update before adjusting height
+        setTimeout(adjustPreviewHeight, 0);
     }
 }
 
 function removeAsset(index) {
     state.assets.splice(index, 1);
     const container = document.getElementById('assetForms');
-    const formItem = document.getElementById(`asset-form-${index}`);
-    if (formItem) {
-        formItem.remove();
-    }
+    const addAssetBtn = document.getElementById('addAssetBtn');
     
-    // Re-render all forms to update indices
-    container.innerHTML = '';
+    // Remove all form items (but keep the button)
+    const formItems = container.querySelectorAll('.asset-form-item');
+    formItems.forEach(item => item.remove());
+    
+    // Re-render all forms to update indices (they will be inserted before the button)
     state.assets.forEach((asset, idx) => {
         renderAssetForm(asset, idx);
     });
     
     updateJSON();
     renderPreview();
+    adjustPreviewHeight();
+}
+
+function adjustPreviewHeight() {
+    const assetFormSection = document.querySelector('.asset-form-section');
+    const assetPreviewSection = document.querySelector('.asset-preview-section');
+    const jsonPreview = document.getElementById('jsonPreview');
+    
+    if (assetFormSection && assetPreviewSection && jsonPreview) {
+        // Get the height of the asset form section (which grows as assets are added)
+        const assetFormHeight = assetFormSection.offsetHeight;
+        
+        // Get the preview section header height
+        const previewHeader = assetPreviewSection.querySelector('h2');
+        const previewHeaderHeight = previewHeader ? previewHeader.offsetHeight + 15 : 0; // 15px for margin-bottom
+        
+        // Get the preview section padding (15px top and bottom = 30px)
+        const previewSectionPadding = 30;
+        
+        // Calculate available height for textarea
+        // Match the asset form section height, accounting for header and padding
+        const availableHeight = assetFormHeight - previewHeaderHeight - previewSectionPadding;
+        
+        // Set minimum height to ensure it's always visible
+        const minHeight = 200;
+        jsonPreview.style.height = `${Math.max(availableHeight, minHeight)}px`;
+    }
 }
 
 function calculatePosition(asset, playerWidth, playerHeight) {
@@ -346,6 +387,7 @@ function renderPreview() {
     const primaryContent = document.getElementById('primaryContent');
     const overlayContainer = document.getElementById('overlayContainer');
     const svg = document.getElementById('annotationSvg');
+    const dimensionsDisplay = document.getElementById('playerDimensions');
     
     // Clear overlays and annotations
     overlayContainer.innerHTML = '';
@@ -354,6 +396,11 @@ function renderPreview() {
     const playerRect = player.getBoundingClientRect();
     const playerWidth = playerRect.width;
     const playerHeight = playerRect.height;
+    
+    // Update dimensions display
+    if (dimensionsDisplay) {
+        dimensionsDisplay.textContent = `${Math.round(playerWidth)} × ${Math.round(playerHeight)}`;
+    }
     
     // Set SVG dimensions
     svg.setAttribute('width', playerWidth);

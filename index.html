@@ -10,7 +10,10 @@
     <div class="container">
         <!-- Preview Player Section -->
         <section class="preview-section">
-            <h2>Preview Player</h2>
+            <div class="preview-header">
+                <h2>Preview Player</h2>
+                <div id="playerDimensions" class="player-dimensions"></div>
+            </div>
             <div class="player-container">
                 <div id="previewPlayer" class="preview-player">
                     <div id="primaryContent" class="primary-content">
@@ -26,7 +29,7 @@
         <section class="asset-form-section">
             <h2>Asset Form</h2>
             <div class="form-controls">
-                <div class="form-group">
+                <div class="form-group form-group-inline">
                     <label for="adType">adType:</label>
                     <select id="adType" class="form-control">
                         <option value="linear">linear</option>
@@ -39,10 +42,11 @@
                         <option value="pauseAd">pauseAd</option>
                     </select>
                 </div>
-                <button id="addAssetBtn" class="btn-primary">ADD ASSET</button>
             </div>
             <div id="primaryContentForm" class="primary-content-form-container"></div>
-            <div id="assetForms" class="asset-forms-container"></div>
+            <div id="assetForms" class="asset-forms-container">
+                <button id="addAssetBtn" class="btn-primary">ADD ASSET</button>
+            </div>
         </section>
 
         <!-- Asset List Preview Section -->
