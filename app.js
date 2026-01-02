@@ -184,12 +184,12 @@ function renderAssetForm(asset, index) {
     formItem.id = `asset-form-${index}`;
     
     formItem.innerHTML = `
-        <h3>Asset ${index + 1}</h3>
+        <h3 id="asset-label-${index}">${asset.id || `Asset ${index + 1}`}</h3>
         <div class="asset-form-grid">
             <div class="form-group">
                 <label for="asset-id-${index}">ID:</label>
                 <input type="text" id="asset-id-${index}" value="${asset.id}" 
-                    onchange="updateAsset(${index}, 'id', this.value)">
+                    onchange="updateAsset(${index}, 'id', this.value); updateAssetLabel(${index}, this.value)">
             </div>
             <div class="form-group">
                 <label for="asset-type-${index}">Type:</label>
@@ -258,6 +258,13 @@ function updateAsset(index, property, value) {
         renderPreview();
         // Use setTimeout to allow DOM to update before adjusting height
         setTimeout(adjustPreviewHeight, 0);
+    }
+}
+
+function updateAssetLabel(index, idValue) {
+    const labelElement = document.getElementById(`asset-label-${index}`);
+    if (labelElement) {
+        labelElement.textContent = idValue || `Asset ${index + 1}`;
     }
 }
 
@@ -596,4 +603,5 @@ window.updateAsset = updateAsset;
 window.removeAsset = removeAsset;
 window.updatePrimaryContent = updatePrimaryContent;
 window.togglePrimaryContentForm = togglePrimaryContentForm;
+window.updateAssetLabel = updateAssetLabel;
 
