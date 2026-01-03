@@ -56,10 +56,15 @@ h2 {
 .player-container {
     width: 100%;
     position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .preview-player {
     width: 100%;
+    max-width: 1920px;
+    max-height: 1080px;
     aspect-ratio: 16 / 9;
     background: white;
     border: 2px solid #333;
