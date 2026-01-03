@@ -290,7 +290,7 @@ function removeAsset(index) {
 function adjustPreviewHeight() {
     const assetFormSection = document.querySelector('.asset-form-section');
     const assetPreviewSection = document.querySelector('.asset-preview-section');
-    const jsonPreview = document.getElementById('jsonPreview');
+    const jsonPreview = document.querySelector('.json-preview');
     
     if (assetFormSection && assetPreviewSection && jsonPreview) {
         // Get the height of the asset form section (which grows as assets are added)
@@ -303,7 +303,7 @@ function adjustPreviewHeight() {
         // Get the preview section padding (15px top and bottom = 30px)
         const previewSectionPadding = 30;
         
-        // Calculate available height for textarea
+        // Calculate available height for preview
         // Match the asset form section height, accounting for header and padding
         const availableHeight = assetFormHeight - previewHeaderHeight - previewSectionPadding;
         
@@ -595,7 +595,16 @@ function updateJSON() {
         }]
     };
     
-    document.getElementById('jsonPreview').value = JSON.stringify(jsonData, null, 4);
+    const jsonPreview = document.getElementById('jsonPreview');
+    const jsonString = JSON.stringify(jsonData, null, 4);
+    
+    // Set the text content
+    jsonPreview.textContent = jsonString;
+    
+    // Apply Prism.js syntax highlighting
+    if (window.Prism) {
+        Prism.highlightElement(jsonPreview);
+    }
 }
 
 // Make functions available globally for inline event handlers

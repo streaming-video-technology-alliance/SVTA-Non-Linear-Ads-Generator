@@ -336,13 +336,25 @@ input[type="text"] {
     padding: 15px;
     border: 1px solid #ddd;
     border-radius: 4px;
-    font-family: 'Courier New', monospace;
-    font-size: 12px;
     background: #fafafa;
     resize: none;
     overflow-y: auto;
+    margin: 0;
+    font-size: 12px;
+}
+
+.json-preview code {
+    display: block;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #333;
     white-space: pre;
     tab-size: 2;
+    user-select: text;
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
 }
 
 /* Scrollbar styling */

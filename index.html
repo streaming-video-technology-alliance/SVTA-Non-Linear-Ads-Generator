@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SVTA Non-Linear Ad Layout Generator</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css">
 </head>
 <body>
     <div class="container">
@@ -52,10 +53,12 @@
         <!-- Asset List Preview Section -->
         <section class="asset-preview-section">
             <h2>Asset List Preview</h2>
-            <textarea id="jsonPreview" class="json-preview" readonly></textarea>
+            <pre class="json-preview"><code id="jsonPreview" class="language-json"></code></pre>
         </section>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
