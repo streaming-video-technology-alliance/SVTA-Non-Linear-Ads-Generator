@@ -11,7 +11,8 @@ const state = {
         verticalPadding: 0,
         scale: 100
     },
-    assetCounter: 0
+    assetCounter: 0,
+    playerSizeLocked: false
 };
 
 // MIME types for dropdown
@@ -48,12 +49,22 @@ function initializeApp() {
     // Handle window resize
     let resizeTimeout;
     window.addEventListener('resize', () => {
-        clearTimeout(resizeTimeout);
-        resizeTimeout = setTimeout(() => {
-            renderPreview();
-            adjustPreviewHeight();
-        }, 100);
+        if (!state.playerSizeLocked) {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                renderPreview();
+                adjustPreviewHeight();
+            }, 100);
+        }
     });
+    
+    // Add click handler to player dimensions toggle
+    const dimensionsDisplay = document.getElementById('playerDimensions');
+    if (dimensionsDisplay) {
+        dimensionsDisplay.style.cursor = 'pointer';
+        dimensionsDisplay.title = 'Click to lock/unlock player size';
+        dimensionsDisplay.addEventListener('click', togglePlayerSize);
+    }
     
     // Render primary content form
     renderPrimaryContentForm();
@@ -68,6 +79,41 @@ function handleAdTypeChange(e) {
     state.adType = e.target.value;
     updateJSON();
     renderPreview();
+}
+
+function togglePlayerSize() {
+    state.playerSizeLocked = !state.playerSizeLocked;
+    const player = document.getElementById('previewPlayer');
+    const dimensionsDisplay = document.getElementById('playerDimensions');
+    
+    if (state.playerSizeLocked) {
+        // Lock to 1920x1080
+        player.style.width = '1920px';
+        player.style.height = '1080px';
+        player.style.maxWidth = '1920px';
+        player.style.maxHeight = '1080px';
+        if (dimensionsDisplay) {
+            dimensionsDisplay.textContent = '1920 × 1080 (Locked)';
+            dimensionsDisplay.style.color = '#1976d2';
+            dimensionsDisplay.style.fontWeight = 'bold';
+        }
+    } else {
+        // Return to dynamic sizing
+        player.style.width = '';
+        player.style.height = '';
+        player.style.maxWidth = '';
+        player.style.maxHeight = '';
+        if (dimensionsDisplay) {
+            dimensionsDisplay.style.color = '';
+            dimensionsDisplay.style.fontWeight = '';
+        }
+    }
+    
+    // Re-render to update dimensions and layout
+    setTimeout(() => {
+        renderPreview();
+        adjustPreviewHeight();
+    }, 10);
 }
 
 function renderPrimaryContentForm() {
@@ -404,8 +450,8 @@ function renderPreview() {
     const playerWidth = playerRect.width;
     const playerHeight = playerRect.height;
     
-    // Update dimensions display
-    if (dimensionsDisplay) {
+    // Update dimensions display (only if not locked)
+    if (dimensionsDisplay && !state.playerSizeLocked) {
         dimensionsDisplay.textContent = `${Math.round(playerWidth)} × ${Math.round(playerHeight)}`;
     }
     
@@ -613,4 +659,5 @@ window.removeAsset = removeAsset;
 window.updatePrimaryContent = updatePrimaryContent;
 window.togglePrimaryContentForm = togglePrimaryContentForm;
 window.updateAssetLabel = updateAssetLabel;
+window.togglePlayerSize = togglePlayerSize;
 
