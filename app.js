@@ -84,6 +84,8 @@ function handleAdTypeChange(e) {
 function togglePlayerSize() {
     state.playerSizeLocked = !state.playerSizeLocked;
     const player = document.getElementById('previewPlayer');
+    const playerContainer = document.querySelector('.player-container');
+    const previewSection = document.querySelector('.preview-section');
     const dimensionsDisplay = document.getElementById('playerDimensions');
     
     if (state.playerSizeLocked) {
@@ -92,6 +94,19 @@ function togglePlayerSize() {
         player.style.height = '1080px';
         player.style.maxWidth = '1920px';
         player.style.maxHeight = '1080px';
+        
+        // Allow container and section to expand to accommodate the locked size
+        if (playerContainer) {
+            playerContainer.style.width = '1920px';
+            playerContainer.style.maxWidth = '1920px';
+            playerContainer.style.overflow = 'visible';
+        }
+        
+        if (previewSection) {
+            previewSection.style.overflow = 'visible';
+            previewSection.style.minWidth = '1920px';
+        }
+        
         if (dimensionsDisplay) {
             dimensionsDisplay.textContent = '1920 × 1080 (Locked)';
             dimensionsDisplay.style.color = '#1976d2';
@@ -103,6 +118,18 @@ function togglePlayerSize() {
         player.style.height = '';
         player.style.maxWidth = '';
         player.style.maxHeight = '';
+        
+        if (playerContainer) {
+            playerContainer.style.width = '';
+            playerContainer.style.maxWidth = '';
+            playerContainer.style.overflow = '';
+        }
+        
+        if (previewSection) {
+            previewSection.style.overflow = '';
+            previewSection.style.minWidth = '';
+        }
+        
         if (dimensionsDisplay) {
             dimensionsDisplay.style.color = '';
             dimensionsDisplay.style.fontWeight = '';

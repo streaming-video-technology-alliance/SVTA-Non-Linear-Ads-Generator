@@ -17,6 +17,7 @@ body {
     gap: 5px;
     max-width: 2000px;
     margin: 0 auto;
+    overflow-x: auto;
 }
 
 section {
