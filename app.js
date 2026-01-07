@@ -58,12 +58,11 @@ function initializeApp() {
         }
     });
     
-    // Add click handler to player dimensions toggle
-    const dimensionsDisplay = document.getElementById('playerDimensions');
-    if (dimensionsDisplay) {
-        dimensionsDisplay.style.cursor = 'pointer';
-        dimensionsDisplay.title = 'Click to lock/unlock player size';
-        dimensionsDisplay.addEventListener('click', togglePlayerSize);
+    // Add click handler to player size toggle button
+    const playerSizeToggle = document.getElementById('playerSizeToggle');
+    if (playerSizeToggle) {
+        playerSizeToggle.addEventListener('click', togglePlayerSize);
+        updateToggleButton();
     }
     
     // Render primary content form
@@ -79,6 +78,23 @@ function handleAdTypeChange(e) {
     state.adType = e.target.value;
     updateJSON();
     renderPreview();
+}
+
+function updateToggleButton() {
+    const playerSizeToggle = document.getElementById('playerSizeToggle');
+    const toggleIcon = playerSizeToggle ? playerSizeToggle.querySelector('.toggle-icon') : null;
+    
+    if (playerSizeToggle && toggleIcon) {
+        if (state.playerSizeLocked) {
+            playerSizeToggle.classList.add('locked');
+            toggleIcon.textContent = '🔒';
+            playerSizeToggle.title = 'Unlock player size (return to dynamic sizing)';
+        } else {
+            playerSizeToggle.classList.remove('locked');
+            toggleIcon.textContent = '🔓';
+            playerSizeToggle.title = 'Lock player size to 1920×1080';
+        }
+    }
 }
 
 function togglePlayerSize() {
@@ -108,9 +124,7 @@ function togglePlayerSize() {
         }
         
         if (dimensionsDisplay) {
-            dimensionsDisplay.textContent = '1920 × 1080 (Locked)';
-            dimensionsDisplay.style.color = '#1976d2';
-            dimensionsDisplay.style.fontWeight = 'bold';
+            dimensionsDisplay.textContent = '1920 × 1080';
         }
     } else {
         // Return to dynamic sizing
@@ -129,12 +143,10 @@ function togglePlayerSize() {
             previewSection.style.overflow = '';
             previewSection.style.minWidth = '';
         }
-        
-        if (dimensionsDisplay) {
-            dimensionsDisplay.style.color = '';
-            dimensionsDisplay.style.fontWeight = '';
-        }
     }
+    
+    // Update toggle button icon
+    updateToggleButton();
     
     // Re-render to update dimensions and layout
     setTimeout(() => {
@@ -477,8 +489,8 @@ function renderPreview() {
     const playerWidth = playerRect.width;
     const playerHeight = playerRect.height;
     
-    // Update dimensions display (only if not locked)
-    if (dimensionsDisplay && !state.playerSizeLocked) {
+    // Update dimensions display
+    if (dimensionsDisplay) {
         dimensionsDisplay.textContent = `${Math.round(playerWidth)} × ${Math.round(playerHeight)}`;
     }
     
