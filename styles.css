@@ -60,7 +60,8 @@ h2 {
 }
 
 .player-dimension-input {
-    width: 20px;
+    width: 80px;
+
     padding: 4px 6px;
     border: 1px solid #ccc;
     border-radius: 3px;
@@ -383,11 +384,12 @@ h2 {
 }
 
 input[type="number"] {
-    padding: 8px 12px;
+   
     border: 1px solid #ccc;
     border-radius: 4px;
     font-size: 14px;
     width: 100%;
+    padding: 8px 12px;
 }
 
 input[type="text"] {
