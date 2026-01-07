@@ -67,6 +67,12 @@ function initializeApp() {
         updateToggleButton();
     }
     
+    // Add click handler to fullscreen button
+    const playerFullscreen = document.getElementById('playerFullscreen');
+    if (playerFullscreen) {
+        playerFullscreen.addEventListener('click', setFullscreenSize);
+    }
+    
     // Add change handlers for dimension inputs
     const playerWidthInput = document.getElementById('playerWidth');
     const playerHeightInput = document.getElementById('playerHeight');
@@ -182,6 +188,55 @@ function togglePlayerSize() {
     updateToggleButton();
     
     // Re-render to update dimensions and layout
+    setTimeout(() => {
+        renderPreview();
+        adjustPreviewHeight();
+    }, 10);
+}
+
+function setFullscreenSize() {
+    const player = document.getElementById('previewPlayer');
+    const playerContainer = document.querySelector('.player-container');
+    const previewSection = document.querySelector('.preview-section');
+    const playerWidthInput = document.getElementById('playerWidth');
+    const playerHeightInput = document.getElementById('playerHeight');
+    
+    const width = 1920;
+    const height = 1080;
+    
+    // Set player dimensions to 1920x1080
+    player.style.width = `${width}px`;
+    player.style.height = `${height}px`;
+    player.style.maxWidth = `${width}px`;
+    player.style.maxHeight = `${height}px`;
+    player.style.minWidth = `${width}px`;
+    player.style.minHeight = `${height}px`;
+    
+    // Update container and section
+    if (playerContainer) {
+        playerContainer.style.width = `${width}px`;
+        playerContainer.style.maxWidth = `${width}px`;
+        playerContainer.style.overflow = 'visible';
+    }
+    
+    if (previewSection) {
+        previewSection.style.overflow = 'visible';
+        previewSection.style.minWidth = `${width}px`;
+    }
+    
+    // Update input values
+    if (playerWidthInput) playerWidthInput.value = width;
+    if (playerHeightInput) playerHeightInput.value = height;
+    
+    // Store locked dimensions and lock the player
+    state.lockedPlayerWidth = width;
+    state.lockedPlayerHeight = height;
+    state.playerSizeLocked = true;
+    
+    // Update toggle button to show locked state
+    updateToggleButton();
+    
+    // Re-render to update layout
     setTimeout(() => {
         renderPreview();
         adjustPreviewHeight();
