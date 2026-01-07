@@ -24,7 +24,7 @@ section {
     background: white;
     border: 1px solid #ddd;
     border-radius: 4px;
-    padding: 15px;
+    padding: 10px;
 }
 
 h2 {
@@ -44,7 +44,7 @@ h2 {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 15px;
+    margin-bottom: 5px;
 }
 
 .player-dimensions-container {
@@ -60,11 +60,11 @@ h2 {
 }
 
 .player-dimension-input {
-    width: 70px;
+    width: 20px;
     padding: 4px 6px;
     border: 1px solid #ccc;
     border-radius: 3px;
-    font-size: 12px;
+    font-size: 10pt;
     font-family: 'Courier New', monospace;
     text-align: center;
     background: white;
