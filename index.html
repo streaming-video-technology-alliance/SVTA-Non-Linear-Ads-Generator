@@ -14,7 +14,11 @@
             <div class="preview-header">
                 <h2>Preview Player</h2>
                 <div class="player-dimensions-container">
-                    <div id="playerDimensions" class="player-dimensions"></div>
+                    <div class="player-dimensions-inputs">
+                        <input type="number" id="playerWidth" class="player-dimension-input" min="1" placeholder="Width">
+                        <span class="dimension-separator">×</span>
+                        <input type="number" id="playerHeight" class="player-dimension-input" min="1" placeholder="Height">
+                    </div>
                     <button id="playerSizeToggle" class="player-size-toggle" title="Toggle player size lock" aria-label="Toggle player size lock">
                         <span class="toggle-icon">🔓</span>
                     </button>

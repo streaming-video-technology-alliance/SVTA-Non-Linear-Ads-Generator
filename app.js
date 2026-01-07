@@ -67,6 +67,20 @@ function initializeApp() {
         updateToggleButton();
     }
     
+    // Add change handlers for dimension inputs
+    const playerWidthInput = document.getElementById('playerWidth');
+    const playerHeightInput = document.getElementById('playerHeight');
+    
+    if (playerWidthInput) {
+        playerWidthInput.addEventListener('change', handleDimensionChange);
+        playerWidthInput.addEventListener('blur', handleDimensionChange);
+    }
+    
+    if (playerHeightInput) {
+        playerHeightInput.addEventListener('change', handleDimensionChange);
+        playerHeightInput.addEventListener('blur', handleDimensionChange);
+    }
+    
     // Render primary content form
     renderPrimaryContentForm();
     
@@ -135,6 +149,12 @@ function togglePlayerSize() {
         }
         
         state.playerSizeLocked = true;
+        
+        // Update input values
+        const playerWidthInput = document.getElementById('playerWidth');
+        const playerHeightInput = document.getElementById('playerHeight');
+        if (playerWidthInput) playerWidthInput.value = state.lockedPlayerWidth;
+        if (playerHeightInput) playerHeightInput.value = state.lockedPlayerHeight;
     } else {
         // Return to dynamic sizing
         player.style.width = '';
@@ -166,6 +186,54 @@ function togglePlayerSize() {
         renderPreview();
         adjustPreviewHeight();
     }, 10);
+}
+
+function handleDimensionChange(e) {
+    const playerWidthInput = document.getElementById('playerWidth');
+    const playerHeightInput = document.getElementById('playerHeight');
+    const player = document.getElementById('previewPlayer');
+    const playerContainer = document.querySelector('.player-container');
+    const previewSection = document.querySelector('.preview-section');
+    
+    const width = parseInt(playerWidthInput.value);
+    const height = parseInt(playerHeightInput.value);
+    
+    // Only update if both values are valid numbers
+    if (!isNaN(width) && width > 0 && !isNaN(height) && height > 0) {
+        // Set player dimensions
+        player.style.width = `${width}px`;
+        player.style.height = `${height}px`;
+        player.style.maxWidth = `${width}px`;
+        player.style.maxHeight = `${height}px`;
+        player.style.minWidth = `${width}px`;
+        player.style.minHeight = `${height}px`;
+        
+        // Update container and section
+        if (playerContainer) {
+            playerContainer.style.width = `${width}px`;
+            playerContainer.style.maxWidth = `${width}px`;
+            playerContainer.style.overflow = 'visible';
+        }
+        
+        if (previewSection) {
+            previewSection.style.overflow = 'visible';
+            previewSection.style.minWidth = `${width}px`;
+        }
+        
+        // Store locked dimensions and lock the player
+        state.lockedPlayerWidth = width;
+        state.lockedPlayerHeight = height;
+        state.playerSizeLocked = true;
+        
+        // Update toggle button to show locked state
+        updateToggleButton();
+        
+        // Re-render to update layout
+        setTimeout(() => {
+            renderPreview();
+            adjustPreviewHeight();
+        }, 10);
+    }
 }
 
 function renderPrimaryContentForm() {
@@ -492,7 +560,6 @@ function renderPreview() {
     const primaryContent = document.getElementById('primaryContent');
     const overlayContainer = document.getElementById('overlayContainer');
     const svg = document.getElementById('annotationSvg');
-    const dimensionsDisplay = document.getElementById('playerDimensions');
     
     // Clear overlays and annotations
     overlayContainer.innerHTML = '';
@@ -502,9 +569,16 @@ function renderPreview() {
     const playerWidth = playerRect.width;
     const playerHeight = playerRect.height;
     
-    // Update dimensions display
-    if (dimensionsDisplay) {
-        dimensionsDisplay.textContent = `${Math.round(playerWidth)} × ${Math.round(playerHeight)}`;
+    // Update dimensions input fields (only if not currently being edited)
+    const playerWidthInput = document.getElementById('playerWidth');
+    const playerHeightInput = document.getElementById('playerHeight');
+    
+    if (playerWidthInput && document.activeElement !== playerWidthInput) {
+        playerWidthInput.value = Math.round(playerWidth);
+    }
+    
+    if (playerHeightInput && document.activeElement !== playerHeightInput) {
+        playerHeightInput.value = Math.round(playerHeight);
     }
     
     // Set SVG dimensions
