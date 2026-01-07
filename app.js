@@ -12,7 +12,9 @@ const state = {
         scale: 100
     },
     assetCounter: 0,
-    playerSizeLocked: false
+    playerSizeLocked: false,
+    lockedPlayerWidth: 0,
+    lockedPlayerHeight: 0
 };
 
 // MIME types for dropdown
@@ -88,50 +90,59 @@ function updateToggleButton() {
         if (state.playerSizeLocked) {
             playerSizeToggle.classList.add('locked');
             toggleIcon.textContent = '🔒';
-            playerSizeToggle.title = 'Unlock player size (return to dynamic sizing)';
+            playerSizeToggle.title = `Unlock player size (currently locked at ${state.lockedPlayerWidth}×${state.lockedPlayerHeight})`;
         } else {
             playerSizeToggle.classList.remove('locked');
             toggleIcon.textContent = '🔓';
-            playerSizeToggle.title = 'Lock player size to 1920×1080';
+            playerSizeToggle.title = 'Lock player size at current dimensions';
         }
     }
 }
 
 function togglePlayerSize() {
-    state.playerSizeLocked = !state.playerSizeLocked;
     const player = document.getElementById('previewPlayer');
     const playerContainer = document.querySelector('.player-container');
     const previewSection = document.querySelector('.preview-section');
-    const dimensionsDisplay = document.getElementById('playerDimensions');
     
-    if (state.playerSizeLocked) {
-        // Lock to 1920x1080
-        player.style.width = '1920px';
-        player.style.height = '1080px';
-        player.style.maxWidth = '1920px';
-        player.style.maxHeight = '1080px';
+    if (!state.playerSizeLocked) {
+        // Lock to current dimensions
+        const playerRect = player.getBoundingClientRect();
+        const currentWidth = playerRect.width;
+        const currentHeight = playerRect.height;
+        
+        // Store current dimensions
+        state.lockedPlayerWidth = Math.round(currentWidth);
+        state.lockedPlayerHeight = Math.round(currentHeight);
+        
+        // Lock to current dimensions
+        player.style.width = `${currentWidth}px`;
+        player.style.height = `${currentHeight}px`;
+        player.style.maxWidth = `${currentWidth}px`;
+        player.style.maxHeight = `${currentHeight}px`;
+        player.style.minWidth = `${currentWidth}px`;
+        player.style.minHeight = `${currentHeight}px`;
         
         // Allow container and section to expand to accommodate the locked size
         if (playerContainer) {
-            playerContainer.style.width = '1920px';
-            playerContainer.style.maxWidth = '1920px';
+            playerContainer.style.width = `${currentWidth}px`;
+            playerContainer.style.maxWidth = `${currentWidth}px`;
             playerContainer.style.overflow = 'visible';
         }
         
         if (previewSection) {
             previewSection.style.overflow = 'visible';
-            previewSection.style.minWidth = '1920px';
+            previewSection.style.minWidth = `${currentWidth}px`;
         }
         
-        if (dimensionsDisplay) {
-            dimensionsDisplay.textContent = '1920 × 1080';
-        }
+        state.playerSizeLocked = true;
     } else {
         // Return to dynamic sizing
         player.style.width = '';
         player.style.height = '';
         player.style.maxWidth = '';
         player.style.maxHeight = '';
+        player.style.minWidth = '';
+        player.style.minHeight = '';
         
         if (playerContainer) {
             playerContainer.style.width = '';
@@ -143,6 +154,8 @@ function togglePlayerSize() {
             previewSection.style.overflow = '';
             previewSection.style.minWidth = '';
         }
+        
+        state.playerSizeLocked = false;
     }
     
     // Update toggle button icon
