@@ -3,7 +3,6 @@ const state = {
     adType: 'overlay',
     assets: [],
     primaryContent: {
-        type: 'video',
         zDepth: 1,
         volume: 100,
         anchorPosition: 'topLeft',
@@ -303,15 +302,6 @@ function renderPrimaryContentForm() {
             </h3>
             <div class="primary-content-form-body" style="display: none;">
                 <div class="asset-form-grid">
-                <div class="form-group">
-                    <label for="primary-type">Type:</label>
-                    <select id="primary-type" onchange="updatePrimaryContent('type', this.value)">
-                        ${mimeTypes.map(type => 
-                            `<option value="${type}" ${pc.type === type ? 'selected' : ''}>${type}</option>`
-                        ).join('')}
-                        <option value="video" ${pc.type === 'video' ? 'selected' : ''}>video</option>
-                    </select>
-                </div>
                 <div class="form-group">
                     <label for="primary-anchorPosition">anchorPosition:</label>
                     <select id="primary-anchorPosition" onchange="updatePrimaryContent('anchorPosition', this.value)">
@@ -797,7 +787,6 @@ function updateJSON() {
                     duration: 15.015,
                     layout: {
                         primaryContent: {
-                            type: state.primaryContent.type,
                             zDepth: state.primaryContent.zDepth,
                             volume: state.primaryContent.volume,
                             anchorPosition: state.primaryContent.anchorPosition,
