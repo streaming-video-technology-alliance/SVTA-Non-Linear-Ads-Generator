@@ -1,6 +1,7 @@
 // Application state
 const state = {
     adType: 'overlay',
+    outputFormat: 'hls', // 'hls' (JSON) or 'dash' (XML)
     assets: [],
     primaryContent: {
         zDepth: 1,
@@ -19,6 +20,7 @@ const state = {
 // MIME types for dropdown
 const mimeTypes = [
     'application/vnd.apple.mpegurl',
+    'application/dash+xml',
     'video/mp4',
     'image/png',
     'image/jpeg'
@@ -46,6 +48,11 @@ function initializeApp() {
     // Set up event listeners
     document.getElementById('adType').addEventListener('change', handleAdTypeChange);
     document.getElementById('addAssetBtn').addEventListener('click', handleAddAsset);
+
+    const formatRadios = document.querySelectorAll('input[name="assetListFormat"]');
+    formatRadios.forEach(radio => {
+        radio.addEventListener('change', handleFormatChange);
+    });
     
     // Handle window resize
     let resizeTimeout;
@@ -99,6 +106,29 @@ function handleAdTypeChange(e) {
     state.adType = e.target.value;
     updateJSON();
     renderPreview();
+}
+
+function handleFormatChange(e) {
+    const value = e.target.value;
+    if (value === 'hls' || value === 'dash') {
+        state.outputFormat = value;
+
+        // Preserve the current preview panel height when toggling formats
+        const previewContainer = document.querySelector('.json-preview');
+        let currentHeight = null;
+        if (previewContainer) {
+            const inlineHeight = previewContainer.style.height;
+            currentHeight = inlineHeight && inlineHeight.trim() !== ''
+                ? inlineHeight
+                : `${previewContainer.offsetHeight}px`;
+        }
+
+        updateJSON();
+
+        if (previewContainer && currentHeight) {
+            previewContainer.style.height = currentHeight;
+        }
+    }
 }
 
 function updateToggleButton() {
@@ -389,7 +419,6 @@ function handleAddAsset() {
 
 function renderAssetForm(asset, index) {
     const container = document.getElementById('assetForms');
-    const addAssetBtn = document.getElementById('addAssetBtn');
     const formItem = document.createElement('div');
     formItem.className = 'asset-form-item';
     formItem.id = `asset-form-${index}`;
@@ -454,12 +483,8 @@ function renderAssetForm(asset, index) {
         <button class="btn-danger" onclick="removeAsset(${index})">Remove Asset</button>
     `;
     
-    // Insert the form before the ADD ASSET button to keep button at bottom
-    if (addAssetBtn) {
-        container.insertBefore(formItem, addAssetBtn);
-    } else {
-        container.appendChild(formItem);
-    }
+    // Append the form item; header row (with ADD ASSET button) is separate
+    container.appendChild(formItem);
 }
 
 function updateAsset(index, property, value) {
@@ -482,9 +507,8 @@ function updateAssetLabel(index, idValue) {
 function removeAsset(index) {
     state.assets.splice(index, 1);
     const container = document.getElementById('assetForms');
-    const addAssetBtn = document.getElementById('addAssetBtn');
-    
-    // Remove all form items (but keep the button)
+
+    // Remove all form items
     const formItems = container.querySelectorAll('.asset-form-item');
     formItems.forEach(item => item.remove());
     
@@ -773,51 +797,128 @@ function drawAnnotations(svg, asset, pos, playerWidth, playerHeight) {
     }
 }
 
+function escapeXml(value) {
+    if (value === undefined || value === null) {
+        return '';
+    }
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+}
+
+function buildDashXml() {
+    const durationSeconds = 15.015;
+    const primary = state.primaryContent;
+    const assets = state.assets || [];
+
+    const primaryXml =
+        '        <svta:PrimaryContent \n' +
+        '            id="primaryContent"\n' +
+        '            uri="&lt;PATH TO PRIMARY CONTENT&gt;"\n' +
+        `            zDepth="${primary.zDepth !== undefined ? primary.zDepth : 1}"\n` +
+        `            volume="${primary.volume !== undefined ? primary.volume : 100}"\n` +
+        `            anchorPosition="${escapeXml(primary.anchorPosition || 'topLeft')}"\n` +
+        `            horizontalPadding="${primary.horizontalPadding !== undefined ? primary.horizontalPadding : 0}"\n` +
+        `            verticalPadding="${primary.verticalPadding !== undefined ? primary.verticalPadding : 0}"\n` +
+        `            scale="${primary.scale !== undefined ? primary.scale : 100}"/>`;
+
+    const assetLines = assets.map(asset => {
+        return (
+            '        <svta:Asset \n' +
+            `            id="${escapeXml(asset.id || '')}"\n` +
+            `            type="${escapeXml(asset.type || '')}"\n` +
+            `            uri="${escapeXml(asset.uri || '')}"\n` +
+            `            anchorPosition="${escapeXml(asset.anchorPosition || 'topLeft')}"\n` +
+            `            zDepth="${asset.zDepth !== undefined ? asset.zDepth : 0}"\n` +
+            `            volume="${asset.volume !== undefined ? asset.volume : 100}"\n` +
+            `            scale="${asset.scale !== undefined ? asset.scale : 100}"\n` +
+            `            horizontalPadding="${asset.horizontalPadding !== undefined ? asset.horizontalPadding : 0}"\n` +
+            `            verticalPadding="${asset.verticalPadding !== undefined ? asset.verticalPadding : 0}"/>`
+        );
+    }).join('\n');
+
+    const overlayInner = assetLines
+        ? `${primaryXml}\n${assetLines}`
+        : primaryXml;
+
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n' +
+        '<MPD xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"\n' +
+        '     xmlns="urn:mpeg:dash:schema:mpd:2011"\n' +
+        '     xmlns:svta="urn:svta:dash:schema:overlay:2026"\n' +
+        '     xsi:schemaLocation="urn:mpeg:dash:schema:mpd:2011 DASH-MPD.xsd"\n' +
+        '     type="overlays"\n' +
+        '     minBufferTime="PT1S"\n' +
+        '     profiles="urn:svta:dash:profile:overlays:2026">\n\n' +
+        `    <Period id="overlay-video" duration="PT${durationSeconds.toFixed(3)}S">\n\n` +
+        '        <svta:Overlay>\n' +
+        `${overlayInner}\n` +
+        '        </svta:Overlay>\n' +
+        '    </Period>\n\n' +
+        '</MPD>\n'
+    );
+}
+
 function updateJSON() {
-    const jsonData = {
-        ASSETS: [{
-            URI: "<PATH TO ASSET>",
-            DURATION: 15.015,
-            "X-AD-CREATIVE-SIGNALING": {
-                version: 2,
-                type: "slot",
-                payload: [{
-                    type: state.adType,
-                    start: 0.0,
-                    duration: 15.015,
-                    layout: {
-                        primaryContent: {
-                            zDepth: state.primaryContent.zDepth,
-                            volume: state.primaryContent.volume,
-                            anchorPosition: state.primaryContent.anchorPosition,
-                            horizontalPadding: state.primaryContent.horizontalPadding,
-                            verticalPadding: state.primaryContent.verticalPadding,
-                            scale: state.primaryContent.scale
-                        },
-                        assets: state.assets.map(asset => ({
-                            id: asset.id,
-                            type: asset.type,
-                            uri: asset.uri,
-                            anchorPosition: asset.anchorPosition,
-                            zDepth: asset.zDepth,
-                            volume: asset.volume,
-                            scale: asset.scale,
-                            horizontalPadding: asset.horizontalPadding,
-                            verticalPadding: asset.verticalPadding
-                        }))
-                    }
-                }]
-            }
-        }]
-    };
-    
     const jsonPreview = document.getElementById('jsonPreview');
-    const jsonString = JSON.stringify(jsonData, null, 4);
-    
-    // Set the text content
-    jsonPreview.textContent = jsonString;
-    
-    // Apply Prism.js syntax highlighting
+    if (!jsonPreview) return;
+
+    let outputString = '';
+
+    if (state.outputFormat === 'dash') {
+        // DASH XML output
+        outputString = buildDashXml();
+        jsonPreview.className = 'language-xml';
+    } else {
+        // Default HLS JSON output
+        const jsonData = {
+            ASSETS: [{
+                URI: "<PATH TO ASSET>",
+                DURATION: 15.015,
+                "X-AD-CREATIVE-SIGNALING": {
+                    version: 2,
+                    type: "slot",
+                    payload: [{
+                        type: state.adType,
+                        start: 0.0,
+                        duration: 15.015,
+                        layout: {
+                            primaryContent: {
+                                zDepth: state.primaryContent.zDepth,
+                                volume: state.primaryContent.volume,
+                                anchorPosition: state.primaryContent.anchorPosition,
+                                horizontalPadding: state.primaryContent.horizontalPadding,
+                                verticalPadding: state.primaryContent.verticalPadding,
+                                scale: state.primaryContent.scale
+                            },
+                            assets: state.assets.map(asset => ({
+                                id: asset.id,
+                                type: asset.type,
+                                uri: asset.uri,
+                                anchorPosition: asset.anchorPosition,
+                                zDepth: asset.zDepth,
+                                volume: asset.volume,
+                                scale: asset.scale,
+                                horizontalPadding: asset.horizontalPadding,
+                                verticalPadding: asset.verticalPadding
+                            }))
+                        }
+                    }]
+                }
+            }]
+        };
+
+        outputString = JSON.stringify(jsonData, null, 4);
+        jsonPreview.className = 'language-json';
+    }
+
+    // Set the text/XML content
+    jsonPreview.textContent = outputString;
+
+    // Apply Prism.js syntax highlighting (will highlight JSON; XML may be plain text)
     if (window.Prism) {
         Prism.highlightElement(jsonPreview);
     }

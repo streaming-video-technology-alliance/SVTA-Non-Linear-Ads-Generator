@@ -42,34 +42,48 @@
         <section class="asset-form-section">
             <h2>Asset Form</h2>
             <div class="form-controls">
-                <div class="form-group form-group-inline">
-                    <label for="adType">adType:</label>
-                    <select id="adType" class="form-control">
-                        <option value="linear">linear</option>
-                        <option value="multiView">multiView</option>
-                        <option value="overlay" selected>overlay</option>
-                        <option value="lowerThirdOverlay">lowerThirdOverlay</option>
-                        <option value="squeezebackFrame">squeezebackFrame</option>
-                        <option value="squeezebackDoubleBox">squeezebackDoubleBox</option>
-                        <option value="squeezebackLShape">squeezebackLShape</option>
-                        <option value="pauseAd">pauseAd</option>
-                    </select>
+                <div class="asset-form-header-row">
+                    <div class="form-group form-group-inline">
+                        <label for="adType">adType:</label>
+                        <select id="adType" class="form-control">
+                            <option value="linear">linear</option>
+                            <option value="multiView">multiView</option>
+                            <option value="overlay" selected>overlay</option>
+                            <option value="lowerThirdOverlay">lowerThirdOverlay</option>
+                            <option value="squeezebackFrame">squeezebackFrame</option>
+                            <option value="squeezebackDoubleBox">squeezebackDoubleBox</option>
+                            <option value="squeezebackLShape">squeezebackLShape</option>
+                            <option value="pauseAd">pauseAd</option>
+                        </select>
+                    </div>
+                    <button id="addAssetBtn" class="btn-primary">ADD ASSET</button>
                 </div>
             </div>
             <div id="primaryContentForm" class="primary-content-form-container"></div>
-            <div id="assetForms" class="asset-forms-container">
-                <button id="addAssetBtn" class="btn-primary">ADD ASSET</button>
-            </div>
+            <div id="assetForms" class="asset-forms-container"></div>
         </section>
 
         <!-- Asset List Preview Section -->
         <section class="asset-preview-section">
-            <h2>Asset List Preview</h2>
+            <div class="asset-preview-header">
+                <h2>Asset List Preview</h2>
+                <div class="format-toggle" role="radiogroup" aria-label="Asset list format">
+                    <label class="format-option">
+                        <input type="radio" id="assetFormatHls" name="assetListFormat" value="hls" checked>
+                        HLS
+                    </label>
+                    <label class="format-option">
+                        <input type="radio" id="assetFormatDash" name="assetListFormat" value="dash">
+                        DASH
+                    </label>
+                </div>
+            </div>
             <pre class="json-preview"><code id="jsonPreview" class="language-json"></code></pre>
         </section>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
     <script src="app.js"></script>
 </body>
