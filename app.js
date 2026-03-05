@@ -57,6 +57,49 @@ const adTypeDefaults = {
             }
         ]
     },
+    multiView: {
+        // Primary content defaults
+        primaryContent: {
+            anchorPosition: 'topLeft',
+            zDepth: 1,
+            volume: 50,
+            scale: 50,
+            horizontalPadding: 0,
+            verticalPadding: 0
+        },
+        assets: [
+            {
+               
+                type: 'video/mp4',
+                anchorPosition: 'topRight',
+                zDepth: 2,
+                volume: 50,
+                scale: 50,
+                horizontalPadding: 0,
+                verticalPadding: 0
+            },
+            {
+               
+                type: 'video/mp4',
+                anchorPosition: 'bottomLeft',
+                zDepth: 3,
+                volume: 50,
+                scale: 50,
+                horizontalPadding: 0,
+                verticalPadding: 0
+            },
+            {
+               
+                type: 'video/mp4',
+                anchorPosition: 'bottomRight',
+                zDepth: 4,
+                volume: 50,
+                scale: 50,
+                horizontalPadding: 0,
+                verticalPadding: 0
+            }
+        ]
+    },
     lowerThirdOverlay: {
         assets: [
             {
