@@ -866,11 +866,13 @@ function drawAnnotations(svg, asset, pos, playerWidth, playerHeight) {
     const horizontalPadding = asset.horizontalPadding || 0;
     const verticalPadding = asset.verticalPadding || 0;
     const scale = asset.scale !== undefined ? asset.scale : 100;
+    const insetMargin = 8; // pixels to inset annotations from player edges when at the edge
     
     // Draw horizontal padding annotation
     // Show annotation if padding is not 0 OR if scale is not 100%
     if (horizontalPadding !== 0 || scale !== 100) {
         let x1, x2, y, textX, textY;
+        let textAnchor = 'middle';
         
         // Determine which side the padding is on based on anchorPosition
         // LEFT side: left, topLeft, bottomLeft, top, bottom, center
@@ -890,6 +892,24 @@ function drawAnnotations(svg, asset, pos, playerWidth, playerHeight) {
             textX = (x1 + x2) / 2;
             textY = y - 8;
         }
+        // If the asset is hard-aligned to the left or right edge with no horizontal padding,
+        // inset the annotation text so it is not clipped, but leave all other cases unchanged.
+        const isLeftSideAnchor = ['topLeft', 'bottomLeft', 'left', 'top', 'bottom', 'center'].includes(anchorPosition);
+        const isRightSideAnchor = ['topRight', 'bottomRight', 'right'].includes(anchorPosition);
+
+        if (isLeftSideAnchor && horizontalPadding === 0 && pos.left <= 0) {
+            // Left edge: move text slightly inside and anchor from the left
+            textX = insetMargin;
+            textAnchor = 'start';
+        } else if (
+            isRightSideAnchor &&
+            horizontalPadding === 0 &&
+            pos.left + pos.width >= playerWidth
+        ) {
+            // Right edge: move text slightly inside and anchor from the right
+            textX = playerWidth - insetMargin;
+            textAnchor = 'end';
+        }
         
         // Draw line
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -905,7 +925,7 @@ function drawAnnotations(svg, asset, pos, playerWidth, playerHeight) {
         text.setAttribute('x', textX);
         text.setAttribute('y', textY);
         text.setAttribute('class', 'annotation-text');
-        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('text-anchor', textAnchor);
         text.textContent = `${horizontalPadding}% | ${Math.round(Math.abs(pos.horizontalPaddingPx))}px`;
         svg.appendChild(text);
     }
@@ -933,6 +953,22 @@ function drawAnnotations(svg, asset, pos, playerWidth, playerHeight) {
             textX = x + 8;
             textY = (y1 + y2) / 2;
         }
+            // If the asset is hard-aligned to the top or bottom edge with no vertical padding,
+            // inset the annotation text so it is not clipped, but leave all other cases unchanged.
+            const isTopSideAnchor = ['topLeft', 'topRight', 'top', 'left', 'right', 'center'].includes(anchorPosition);
+            const isBottomSideAnchor = ['bottomLeft', 'bottomRight', 'bottom'].includes(anchorPosition);
+
+            if (isTopSideAnchor && verticalPadding === 0 && pos.top <= 0) {
+                // Top edge: move text slightly inside
+                textY = insetMargin;
+            } else if (
+                isBottomSideAnchor &&
+                verticalPadding === 0 &&
+                pos.top + pos.height >= playerHeight
+            ) {
+                // Bottom edge: move text slightly inside
+                textY = playerHeight - insetMargin;
+            }
         
         // Draw line
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
