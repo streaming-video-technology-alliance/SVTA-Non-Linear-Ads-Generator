@@ -39,6 +39,120 @@ const anchorPositions = [
     { value: 'center', label: 'center' }
 ];
 
+// Default configurations for each adType
+// These are applied when "ADD ASSET" is clicked, based on the selected adType.
+const adTypeDefaults = {
+    overlay: {
+        assets: [
+            {
+                // Aligns with "overlay" defaults
+                type: 'video/mp4',
+                // anchorPosition not defined in spec; keep topLeft as standard corner overlay
+                anchorPosition: 'topLeft',
+                zDepth: 2,
+                volume: 100,
+                scale: 25,
+                horizontalPadding: 0,
+                verticalPadding: 0
+            }
+        ]
+    },
+    lowerThirdOverlay: {
+        assets: [
+            {
+                // Aligns with "lowerThirdOverlay" defaults
+                type: 'video/mp4',
+                anchorPosition: 'bottom',
+                zDepth: 2,
+                volume: 100,
+                scale: 30,
+                horizontalPadding: 0,
+                verticalPadding: 0
+            }
+        ]
+    },
+    squeezebackFrame: {
+        // Primary content defaults
+        primaryContent: {
+            anchorPosition: 'center',
+            zDepth: 2,
+            volume: 0,
+            scale: 60,
+            horizontalPadding: 0,
+            verticalPadding: 0
+        },
+        // Single frame asset
+        assets: [
+            {
+                type: 'image/png',
+                anchorPosition: 'bottom',
+                zDepth: 1,
+                volume: 100,
+                scale: 100,
+                horizontalPadding: 0,
+                verticalPadding: 0
+            }
+        ]
+    },
+    squeezebackDoubleBox: {
+        // Primary content defaults
+        primaryContent: {
+            anchorPosition: 'left',
+            zDepth: 1,
+            volume: 0,
+            scale: 50,
+            horizontalPadding: 0,
+            verticalPadding: 0
+        },
+        // Single secondary box asset
+        assets: [
+            {
+                type: 'video/mp4',
+                anchorPosition: 'right',
+                zDepth: 2,
+                volume: 100,
+                scale: 50,
+                horizontalPadding: 0,
+                verticalPadding: 0
+            }
+        ]
+    },
+    squeezebackLShape: {
+        // Primary content defaults
+        primaryContent: {
+            anchorPosition: 'topLeft',
+            zDepth: 3,
+            volume: 0,
+            scale: 60,
+            horizontalPadding: 0,
+            verticalPadding: 0
+        },
+        // Horizontal banner + vertical background assets
+        assets: [
+            {
+                id: 'banner',
+                type: 'image/png',
+                anchorPosition: 'bottom',
+                zDepth: 2,
+                volume: 100,
+                scale: 100,
+                horizontalPadding: 0,
+                verticalPadding: 0
+            },
+            {
+                id: 'background',
+                type: 'image/png',
+                anchorPosition: 'right',
+                zDepth: 1,
+                volume: 0,
+                scale: 100,
+                horizontalPadding: 0,
+                verticalPadding: 0
+            }
+        ]
+    }
+};
+
 // Initialize application
 document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
@@ -396,22 +510,65 @@ function updatePrimaryContent(property, value) {
 }
 
 function handleAddAsset() {
-    const newAsset = {
-        id: `adOverlay${state.assetCounter + 1}`,
-        type: 'application/vnd.apple.mpegurl',
-        uri: '',
-        anchorPosition: 'topLeft',
-        zDepth: state.assets.length + 1,
-        volume: 100,
-        scale: 20,
-        horizontalPadding: 5,
-        verticalPadding: 5
-    };
+    const config = adTypeDefaults[state.adType];
+
+    if (config) {
+        // Apply primary content defaults when defined for this adType
+        if (config.primaryContent) {
+            state.primaryContent = {
+                ...state.primaryContent,
+                ...config.primaryContent
+            };
+            renderPrimaryContentForm();
+        }
+
+        // Add all defined assets for this adType
+        config.assets.forEach(assetDefaults => {
+            const newAsset = {
+                id: assetDefaults.id !== undefined
+                    ? assetDefaults.id
+                    : `asset${state.assetCounter + 1}`,
+                type: assetDefaults.type || 'application/vnd.apple.mpegurl',
+                uri: '',
+                anchorPosition: assetDefaults.anchorPosition || 'topLeft',
+                zDepth: assetDefaults.zDepth !== undefined
+                    ? assetDefaults.zDepth
+                    : state.assets.length + 1,
+                volume: assetDefaults.volume !== undefined ? assetDefaults.volume : 100,
+                scale: assetDefaults.scale !== undefined ? assetDefaults.scale : 100,
+                horizontalPadding: assetDefaults.horizontalPadding !== undefined
+                    ? assetDefaults.horizontalPadding
+                    : 0,
+                verticalPadding: assetDefaults.verticalPadding !== undefined
+                    ? assetDefaults.verticalPadding
+                    : 0
+            };
+
+            state.assets.push(newAsset);
+            state.assetCounter++;
+
+            renderAssetForm(newAsset, state.assets.length - 1);
+        });
+    } else {
+        // Fallback behavior for adTypes without explicit defaults
+        const newAsset = {
+            id: `asset${state.assetCounter + 1}`,
+            type: 'application/vnd.apple.mpegurl',
+            uri: '',
+            anchorPosition: 'topLeft',
+            zDepth: state.assets.length + 1,
+            volume: 100,
+            scale: 20,
+            horizontalPadding: 5,
+            verticalPadding: 5
+        };
+        
+        state.assets.push(newAsset);
+        state.assetCounter++;
+        
+        renderAssetForm(newAsset, state.assets.length - 1);
+    }
     
-    state.assets.push(newAsset);
-    state.assetCounter++;
-    
-    renderAssetForm(newAsset, state.assets.length - 1);
     updateJSON();
     renderPreview();
     adjustPreviewHeight();
