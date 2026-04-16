@@ -850,26 +850,35 @@ function buildDashXml() {
     const includePrimary = !isPrimaryContentAtDefaults();
 
     const primaryXml = includePrimary
-        ? (
-            '            <svta:PrimaryContent \n' +
-            '                id="primaryContent"\n' +
-            '                uri="[PATH TO PRIMARY CONTENT]"\n' +
-            `                zDepth="${primary.zDepth !== undefined ? primary.zDepth : 1}"\n` +
-            `                volume="${primary.volume !== undefined ? primary.volume : 100}"\n` +
-            `                viewport="${escapeXml(formatViewport(primary.viewport))}"/>`
-        )
+        ? (() => {
+            const zDepth = primary.zDepth !== undefined ? primary.zDepth : 0;
+            const volume = primary.volume !== undefined ? primary.volume : 100;
+            const viewport = escapeXml(formatViewport(primary.viewport));
+            let xml = '';
+            xml += '            <svta:PrimaryContent \n';
+            xml += '                id="primaryContent"\n';
+            xml += '                uri="[PATH TO PRIMARY CONTENT]"\n';
+            xml += `                zDepth="${zDepth}"\n`;
+            if (volume !== 100) xml += `                volume="${volume}"\n`;
+            xml += `                viewport="${viewport}"/>`;
+            return xml;
+        })()
         : '';
 
     const assetLines = assets.map(asset => {
-        return (
-            '            <svta:Asset \n' +
-            `                id="${escapeXml(asset.id || '')}"\n` +
-            `                type="${escapeXml(asset.type || '')}"\n` +
-            `                uri="${escapeXml(asset.uri || '')}"\n` +
-            `                viewport="${escapeXml(formatViewport(asset.viewport))}"\n` +
-            `                zDepth="${asset.zDepth !== undefined ? asset.zDepth : 0}"\n` +
-            `                volume="${asset.volume !== undefined ? asset.volume : 100}"/>`
-        );
+        const zDepth = asset.zDepth !== undefined ? asset.zDepth : 0;
+        const volume = asset.volume !== undefined ? asset.volume : 100;
+        const viewport = escapeXml(formatViewport(asset.viewport));
+        let xml = '';
+        xml += '            <svta:Asset \n';
+        xml += `                id="${escapeXml(asset.id || '')}"\n`;
+        xml += `                type="${escapeXml(asset.type || '')}"\n`;
+        xml += `                uri="${escapeXml(asset.uri || '')}"\n`;
+        xml += `                viewport="${viewport}"\n`;
+        xml += `                zDepth="${zDepth}"`;
+        if (volume !== 100) xml += `\n                volume="${volume}"`;
+        xml += '/>';
+        return xml;
     }).join('\n');
 
     let overlayInner;
@@ -909,20 +918,28 @@ function updateJSON() {
         // Default HLS JSON output
         const layout = {};
         if (!isPrimaryContentAtDefaults()) {
-            layout.primaryContent = {
-                zDepth: state.primaryContent.zDepth,
-                volume: state.primaryContent.volume,
-                viewport: formatViewport(state.primaryContent.viewport)
+            const pc = {
+                zDepth: state.primaryContent.zDepth
             };
+            if (state.primaryContent.volume !== 100) {
+                pc.volume = state.primaryContent.volume;
+            }
+            pc.viewport = formatViewport(state.primaryContent.viewport);
+            layout.primaryContent = pc;
         }
-        layout.assets = state.assets.map(asset => ({
-            id: asset.id,
-            type: asset.type,
-            uri: asset.uri,
-            viewport: formatViewport(asset.viewport),
-            zDepth: asset.zDepth,
-            volume: asset.volume
-        }));
+        layout.assets = state.assets.map(asset => {
+            const out = {
+                id: asset.id,
+                type: asset.type,
+                uri: asset.uri,
+                viewport: formatViewport(asset.viewport),
+                zDepth: asset.zDepth
+            };
+            if (asset.volume !== 100) {
+                out.volume = asset.volume;
+            }
+            return out;
+        });
         
         const jsonData = {
             ASSETS: [{
