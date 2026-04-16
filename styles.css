@@ -13,11 +13,12 @@ body {
 .container {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto auto;
+    grid-template-rows: auto minmax(300px, 1fr);
     gap: 5px;
     max-width: 2000px;
     margin: 0 auto;
     overflow-x: auto;
+    min-height: calc(100vh - 10px);
 }
 
 section {
@@ -141,6 +142,9 @@ h2 {
     position: relative;
     overflow: hidden;
     margin: 0 auto;
+    /* Establish a stacking context so primary-content, asset overlays, the
+       annotation SVG and the resize handle all paint within this container. */
+    isolation: isolate;
 }
 
 .primary-content {
@@ -154,7 +158,6 @@ h2 {
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 0;
 }
 
 .content-label {
@@ -168,7 +171,6 @@ h2 {
     left: 0;
     width: 100%;
     height: 100%;
-    z-index: 1;
 }
 
 .overlay-asset {
@@ -201,7 +203,37 @@ h2 {
     width: 100%;
     height: 100%;
     pointer-events: none;
-    z-index: 2;
+    z-index: 1000;
+}
+
+.player-resize-handle {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 18px;
+    height: 18px;
+    cursor: nwse-resize;
+    z-index: 1001;
+    touch-action: none;
+    user-select: none;
+    background-image:
+        linear-gradient(135deg, transparent 0%, transparent 55%, #888 55%, #888 65%, transparent 65%, transparent 75%, #888 75%, #888 85%, transparent 85%, transparent 95%, #888 95%);
+    background-color: rgba(255, 255, 255, 0.6);
+    border-top-left-radius: 3px;
+    transition: background-color 0.15s;
+}
+
+.player-resize-handle:hover,
+.player-resize-handle.active {
+    background-image:
+        linear-gradient(135deg, transparent 0%, transparent 55%, #1976d2 55%, #1976d2 65%, transparent 65%, transparent 75%, #1976d2 75%, #1976d2 85%, transparent 85%, transparent 95%, #1976d2 95%);
+    background-color: rgba(255, 255, 255, 0.9);
+}
+
+body.player-resizing,
+body.player-resizing * {
+    cursor: nwse-resize !important;
+    user-select: none !important;
 }
 
 .annotation-line {
@@ -211,15 +243,25 @@ h2 {
 }
 
 .annotation-text {
-    font-size: 11px;
+    font-size: 9px;
     fill: #d32f2f;
     font-weight: 600;
+}
+
+.annotation-badge {
+    fill: #ffffff;
+    fill-opacity: 0.5;
+    stroke: #000000;
+    stroke-width: 1;
 }
 
 /* Asset Form Section */
 .asset-form-section {
     grid-column: 1;
     grid-row: 2;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .asset-form-header {
@@ -339,7 +381,8 @@ h2 {
 }
 
 .asset-forms-container {
-    max-height: 400px;
+    flex: 1 1 auto;
+    min-height: 200px;
     overflow-y: auto;
     border: 1px solid #ddd;
     border-radius: 4px;
@@ -386,6 +429,70 @@ h2 {
     min-width: 100%;
 }
 
+.form-group-viewport {
+    grid-column: 1 / -1;
+    min-width: 100%;
+}
+
+.viewport-inputs {
+    display: grid;
+    grid-template-columns: repeat(4, 90px);
+    gap: 8px;
+}
+
+.viewport-input-field {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 3px;
+}
+
+.viewport-input-field input[type="number"] {
+    padding: 6px 8px;
+    font-size: 13px;
+    text-align: center;
+    font-family: 'Courier New', monospace;
+}
+
+.form-row-compact {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 15px;
+}
+
+.form-row-compact .form-group {
+    flex: 0 0 auto;
+}
+
+.asset-form-grid .form-group-compact {
+    min-width: 0;
+}
+
+.asset-form-grid .form-group-compact input[type="number"] {
+    width: 90px;
+    max-width: 100%;
+    padding: 6px 8px;
+    font-size: 13px;
+    text-align: center;
+    font-family: 'Courier New', monospace;
+}
+
+.viewport-input-field span {
+    font-size: 11px;
+    color: #777;
+    text-align: center;
+    text-transform: lowercase;
+    letter-spacing: 0.3px;
+}
+
+.input-invalid {
+    border-color: #d32f2f !important;
+    box-shadow: 0 0 0 2px rgba(211, 47, 47, 0.2);
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
 input[type="number"] {
    
     border: 1px solid #ccc;
@@ -417,6 +524,9 @@ input[type="text"] {
 .asset-preview-section {
     grid-column: 2;
     grid-row: 2;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .asset-preview-header {
@@ -450,7 +560,8 @@ input[type="text"] {
 
 .json-preview {
     width: 100%;
-    height: 400px;
+    flex: 1 1 auto;
+    min-height: 200px;
     padding: 15px;
     border: 1px solid #ddd;
     border-radius: 4px;

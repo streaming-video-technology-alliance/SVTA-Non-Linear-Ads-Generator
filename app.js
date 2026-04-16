@@ -4,12 +4,9 @@ const state = {
     outputFormat: 'hls', // 'hls' (JSON) or 'dash' (XML)
     assets: [],
     primaryContent: {
-        zDepth: 1,
+        zDepth: 0,
         volume: 100,
-        anchorPosition: 'topLeft',
-        horizontalPadding: 0,
-        verticalPadding: 0,
-        scale: 100
+        viewport: { top: 0, right: 0, bottom: 0, left: 0 }
     },
     assetCounter: 0,
     playerSizeLocked: false,
@@ -26,18 +23,42 @@ const mimeTypes = [
     'image/jpeg'
 ];
 
-// Anchor positions
-const anchorPositions = [
-    { value: 'topLeft', label: 'topLeft' },
-    { value: 'topRight', label: 'topRight' },
-    { value: 'bottomLeft', label: 'bottomLeft' },
-    { value: 'bottomRight', label: 'bottomRight' },
-    { value: 'left', label: 'left' },
-    { value: 'right', label: 'right' },
-    { value: 'top', label: 'top' },
-    { value: 'bottom', label: 'bottom' },
-    { value: 'center', label: 'center' }
-];
+// Viewport helpers (CSS layout viewport: "Top Right Bottom Left" in % of player area)
+function clampViewportValue(v) {
+    const n = Number(v);
+    if (isNaN(n)) return 0;
+    return Math.max(0, Math.min(100, n));
+}
+
+function formatViewport(vp) {
+    if (!vp) return '0 0 0 0';
+    return `${vp.top} ${vp.right} ${vp.bottom} ${vp.left}`;
+}
+
+function viewportHasInset(vp) {
+    if (!vp) return false;
+    return vp.top !== 0 || vp.right !== 0 || vp.bottom !== 0 || vp.left !== 0;
+}
+
+// Defaults that primaryContent is initialized with; if the user hasn't changed
+// any of them, primaryContent is omitted from the Data Preview output.
+const PRIMARY_CONTENT_DEFAULTS = {
+    zDepth: 0,
+    volume: 100,
+    viewport: { top: 0, right: 0, bottom: 0, left: 0 }
+};
+
+function isPrimaryContentAtDefaults() {
+    const pc = state.primaryContent || {};
+    const vp = pc.viewport || {};
+    const dvp = PRIMARY_CONTENT_DEFAULTS.viewport;
+    return pc.zDepth === PRIMARY_CONTENT_DEFAULTS.zDepth
+        && pc.volume === PRIMARY_CONTENT_DEFAULTS.volume
+        && vp.top === dvp.top
+        && vp.right === dvp.right
+        && vp.bottom === dvp.bottom
+        && vp.left === dvp.left;
+}
 
 // Initialize application
 document.addEventListener('DOMContentLoaded', () => {
@@ -96,6 +117,9 @@ function initializeApp() {
     // Render primary content form
     renderPrimaryContentForm();
     
+    // Wire up drag-to-resize on the preview player
+    initializePlayerResize();
+    
     // Initial render
     updateJSON();
     renderPreview();
@@ -112,22 +136,7 @@ function handleFormatChange(e) {
     const value = e.target.value;
     if (value === 'hls' || value === 'dash') {
         state.outputFormat = value;
-
-        // Preserve the current preview panel height when toggling formats
-        const previewContainer = document.querySelector('.json-preview');
-        let currentHeight = null;
-        if (previewContainer) {
-            const inlineHeight = previewContainer.style.height;
-            currentHeight = inlineHeight && inlineHeight.trim() !== ''
-                ? inlineHeight
-                : `${previewContainer.offsetHeight}px`;
-        }
-
         updateJSON();
-
-        if (previewContainer && currentHeight) {
-            previewContainer.style.height = currentHeight;
-        }
     }
 }
 
@@ -223,17 +232,15 @@ function togglePlayerSize() {
     }, 10);
 }
 
-function setFullscreenSize() {
+function applyPlayerSize(width, height, options = {}) {
     const player = document.getElementById('previewPlayer');
     const playerContainer = document.querySelector('.player-container');
     const previewSection = document.querySelector('.preview-section');
     const playerWidthInput = document.getElementById('playerWidth');
     const playerHeightInput = document.getElementById('playerHeight');
     
-    const width = 1920;
-    const height = 1080;
+    if (!player) return;
     
-    // Set player dimensions to 1920x1080
     player.style.width = `${width}px`;
     player.style.height = `${height}px`;
     player.style.maxWidth = `${width}px`;
@@ -241,7 +248,6 @@ function setFullscreenSize() {
     player.style.minWidth = `${width}px`;
     player.style.minHeight = `${height}px`;
     
-    // Update container and section
     if (playerContainer) {
         playerContainer.style.width = `${width}px`;
         playerContainer.style.maxWidth = `${width}px`;
@@ -253,76 +259,117 @@ function setFullscreenSize() {
         previewSection.style.minWidth = `${width}px`;
     }
     
-    // Update input values
-    if (playerWidthInput) playerWidthInput.value = width;
-    if (playerHeightInput) playerHeightInput.value = height;
+    if (playerWidthInput && document.activeElement !== playerWidthInput) {
+        playerWidthInput.value = width;
+    }
+    if (playerHeightInput && document.activeElement !== playerHeightInput) {
+        playerHeightInput.value = height;
+    }
     
-    // Store locked dimensions and lock the player
     state.lockedPlayerWidth = width;
     state.lockedPlayerHeight = height;
     state.playerSizeLocked = true;
     
-    // Update toggle button to show locked state
     updateToggleButton();
     
-    // Re-render to update layout
-    setTimeout(() => {
+    if (options.immediate) {
         renderPreview();
-        adjustPreviewHeight();
-    }, 10);
+        if (!options.skipPreviewHeight) adjustPreviewHeight();
+    } else {
+        setTimeout(() => {
+            renderPreview();
+            if (!options.skipPreviewHeight) adjustPreviewHeight();
+        }, 10);
+    }
+}
+
+function setFullscreenSize() {
+    applyPlayerSize(1920, 1080);
 }
 
 function handleDimensionChange(e) {
     const playerWidthInput = document.getElementById('playerWidth');
     const playerHeightInput = document.getElementById('playerHeight');
-    const player = document.getElementById('previewPlayer');
-    const playerContainer = document.querySelector('.player-container');
-    const previewSection = document.querySelector('.preview-section');
     
     const width = parseInt(playerWidthInput.value);
     const height = parseInt(playerHeightInput.value);
     
-    // Only update if both values are valid numbers
     if (!isNaN(width) && width > 0 && !isNaN(height) && height > 0) {
-        // Set player dimensions
-        player.style.width = `${width}px`;
-        player.style.height = `${height}px`;
-        player.style.maxWidth = `${width}px`;
-        player.style.maxHeight = `${height}px`;
-        player.style.minWidth = `${width}px`;
-        player.style.minHeight = `${height}px`;
-        
-        // Update container and section
-        if (playerContainer) {
-            playerContainer.style.width = `${width}px`;
-            playerContainer.style.maxWidth = `${width}px`;
-            playerContainer.style.overflow = 'visible';
-        }
-        
-        if (previewSection) {
-            previewSection.style.overflow = 'visible';
-            previewSection.style.minWidth = `${width}px`;
-        }
-        
-        // Store locked dimensions and lock the player
-        state.lockedPlayerWidth = width;
-        state.lockedPlayerHeight = height;
-        state.playerSizeLocked = true;
-        
-        // Update toggle button to show locked state
-        updateToggleButton();
-        
-        // Re-render to update layout
-        setTimeout(() => {
-            renderPreview();
-            adjustPreviewHeight();
-        }, 10);
+        applyPlayerSize(width, height);
     }
+}
+
+function initializePlayerResize() {
+    const handle = document.getElementById('playerResizeHandle');
+    const player = document.getElementById('previewPlayer');
+    if (!handle || !player) return;
+    
+    const MIN_WIDTH = 100;
+    const MIN_HEIGHT = 56;
+    
+    let isResizing = false;
+    let startX = 0;
+    let startY = 0;
+    let startWidth = 0;
+    let startHeight = 0;
+    let rafId = 0;
+    let pendingWidth = 0;
+    let pendingHeight = 0;
+    
+    function flushResize() {
+        rafId = 0;
+        applyPlayerSize(pendingWidth, pendingHeight, { immediate: true, skipPreviewHeight: true });
+    }
+    
+    function scheduleResize(width, height) {
+        pendingWidth = width;
+        pendingHeight = height;
+        if (!rafId) rafId = requestAnimationFrame(flushResize);
+    }
+    
+    handle.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        isResizing = true;
+        const rect = player.getBoundingClientRect();
+        startX = e.clientX;
+        startY = e.clientY;
+        startWidth = rect.width;
+        startHeight = rect.height;
+        try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+        document.body.classList.add('player-resizing');
+        handle.classList.add('active');
+    });
+    
+    handle.addEventListener('pointermove', (e) => {
+        if (!isResizing) return;
+        e.preventDefault();
+        const newWidth = Math.max(MIN_WIDTH, Math.round(startWidth + (e.clientX - startX)));
+        const newHeight = Math.max(MIN_HEIGHT, Math.round(startHeight + (e.clientY - startY)));
+        scheduleResize(newWidth, newHeight);
+    });
+    
+    function endResize(e) {
+        if (!isResizing) return;
+        isResizing = false;
+        try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+        document.body.classList.remove('player-resizing');
+        handle.classList.remove('active');
+        if (rafId) {
+            cancelAnimationFrame(rafId);
+            rafId = 0;
+        }
+        adjustPreviewHeight();
+    }
+    
+    handle.addEventListener('pointerup', endResize);
+    handle.addEventListener('pointercancel', endResize);
 }
 
 function renderPrimaryContentForm() {
     const container = document.getElementById('primaryContentForm');
     const pc = state.primaryContent;
+    const vp = pc.viewport || { top: 0, right: 0, bottom: 0, left: 0 };
     
     container.innerHTML = `
         <div class="asset-form-item primary-content-form">
@@ -332,38 +379,46 @@ function renderPrimaryContentForm() {
             </h3>
             <div class="primary-content-form-body" style="display: none;">
                 <div class="asset-form-grid">
-                <div class="form-group">
-                    <label for="primary-anchorPosition">anchorPosition:</label>
-                    <select id="primary-anchorPosition" onchange="updatePrimaryContent('anchorPosition', this.value)">
-                        ${anchorPositions.map(ap => 
-                            `<option value="${ap.value}" ${pc.anchorPosition === ap.value ? 'selected' : ''}>${ap.label}</option>`
-                        ).join('')}
-                    </select>
+                <div class="form-group form-group-viewport">
+                    <label>viewport (%):</label>
+                    <div class="viewport-inputs">
+                        <div class="viewport-input-field">
+                            <input type="number" id="primary-viewport-top" value="${vp.top}"
+                                min="0" max="100" step="1"
+                                onchange="updatePrimaryContentViewportField('top', this.value, this)">
+                            <span>top</span>
+                        </div>
+                        <div class="viewport-input-field">
+                            <input type="number" id="primary-viewport-right" value="${vp.right}"
+                                min="0" max="100" step="1"
+                                onchange="updatePrimaryContentViewportField('right', this.value, this)">
+                            <span>right</span>
+                        </div>
+                        <div class="viewport-input-field">
+                            <input type="number" id="primary-viewport-bottom" value="${vp.bottom}"
+                                min="0" max="100" step="1"
+                                onchange="updatePrimaryContentViewportField('bottom', this.value, this)">
+                            <span>bottom</span>
+                        </div>
+                        <div class="viewport-input-field">
+                            <input type="number" id="primary-viewport-left" value="${vp.left}"
+                                min="0" max="100" step="1"
+                                onchange="updatePrimaryContentViewportField('left', this.value, this)">
+                            <span>left</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="primary-zDepth">zDepth:</label>
-                    <input type="number" id="primary-zDepth" value="${pc.zDepth}" 
-                        min="0" onchange="updatePrimaryContent('zDepth', parseInt(this.value) || 0)">
-                </div>
-                <div class="form-group">
-                    <label for="primary-volume">volume:</label>
-                    <input type="number" id="primary-volume" value="${pc.volume}" 
-                        min="0" max="100" onchange="updatePrimaryContent('volume', parseInt(this.value) || 0)">
-                </div>
-                <div class="form-group">
-                    <label for="primary-scale">scale:</label>
-                    <input type="number" id="primary-scale" value="${pc.scale}" 
-                        min="0" max="100" onchange="updatePrimaryContent('scale', parseInt(this.value) || 0)">
-                </div>
-                <div class="form-group">
-                    <label for="primary-horizontalPadding">horizontalPadding:</label>
-                    <input type="number" id="primary-horizontalPadding" value="${pc.horizontalPadding}" 
-                        min="-100" max="100" onchange="updatePrimaryContent('horizontalPadding', parseInt(this.value) || 0)">
-                </div>
-                <div class="form-group">
-                    <label for="primary-verticalPadding">verticalPadding:</label>
-                    <input type="number" id="primary-verticalPadding" value="${pc.verticalPadding}" 
-                        min="-100" max="100" onchange="updatePrimaryContent('verticalPadding', parseInt(this.value) || 0)">
+                <div class="form-row-compact">
+                    <div class="form-group form-group-compact">
+                        <label for="primary-zDepth">zDepth:</label>
+                        <input type="number" id="primary-zDepth" value="${pc.zDepth}" 
+                            min="0" onchange="updatePrimaryContent('zDepth', parseInt(this.value) || 0)">
+                    </div>
+                    <div class="form-group form-group-compact">
+                        <label for="primary-volume">volume:</label>
+                        <input type="number" id="primary-volume" value="${pc.volume}" 
+                            min="0" max="100" onchange="updatePrimaryContent('volume', parseInt(this.value) || 0)">
+                    </div>
                 </div>
                 </div>
             </div>
@@ -395,17 +450,31 @@ function updatePrimaryContent(property, value) {
     renderPreview();
 }
 
+function updatePrimaryContentViewportField(field, value, inputEl) {
+    if (!state.primaryContent.viewport) {
+        state.primaryContent.viewport = { top: 0, right: 0, bottom: 0, left: 0 };
+    }
+    const clamped = clampViewportValue(value);
+    state.primaryContent.viewport[field] = clamped;
+    if (inputEl) inputEl.value = clamped;
+    updateJSON();
+    renderPreview();
+}
+
 function handleAddAsset() {
+    // Default zDepth: one above the last added asset, or 1 (above primary content's default of 0).
+    const lastAsset = state.assets[state.assets.length - 1];
+    const defaultZDepth = lastAsset && lastAsset.zDepth !== undefined
+        ? lastAsset.zDepth + 1
+        : 1;
+    
     const newAsset = {
         id: `adOverlay${state.assetCounter + 1}`,
         type: 'application/vnd.apple.mpegurl',
         uri: '',
-        anchorPosition: 'topLeft',
-        zDepth: state.assets.length + 1,
-        volume: 100,
-        scale: 20,
-        horizontalPadding: 5,
-        verticalPadding: 5
+        viewport: { top: 5, right: 75, bottom: 75, left: 5 },
+        zDepth: defaultZDepth,
+        volume: 100
     };
     
     state.assets.push(newAsset);
@@ -422,6 +491,7 @@ function renderAssetForm(asset, index) {
     const formItem = document.createElement('div');
     formItem.className = 'asset-form-item';
     formItem.id = `asset-form-${index}`;
+    const vp = asset.viewport || { top: 0, right: 0, bottom: 0, left: 0 };
     
     formItem.innerHTML = `
         <h3 id="asset-label-${index}">${asset.id || `Asset ${index + 1}`}</h3>
@@ -445,39 +515,46 @@ function renderAssetForm(asset, index) {
                 <input type="text" id="asset-uri-${index}" value="${asset.uri}" 
                     onchange="updateAsset(${index}, 'uri', this.value)" required>
             </div>
-            <div class="form-group">
-                <label for="asset-anchorPosition-${index}">anchorPosition:</label>
-                <select id="asset-anchorPosition-${index}" 
-                    onchange="updateAsset(${index}, 'anchorPosition', this.value)">
-                    ${anchorPositions.map(ap => 
-                        `<option value="${ap.value}" ${asset.anchorPosition === ap.value ? 'selected' : ''}>${ap.label}</option>`
-                    ).join('')}
-                </select>
+            <div class="form-group form-group-viewport">
+                <label>viewport (%):</label>
+                <div class="viewport-inputs">
+                    <div class="viewport-input-field">
+                        <input type="number" id="asset-viewport-top-${index}" value="${vp.top}"
+                            min="0" max="100" step="1"
+                            onchange="updateAssetViewportField(${index}, 'top', this.value, this)">
+                        <span>top</span>
+                    </div>
+                    <div class="viewport-input-field">
+                        <input type="number" id="asset-viewport-right-${index}" value="${vp.right}"
+                            min="0" max="100" step="1"
+                            onchange="updateAssetViewportField(${index}, 'right', this.value, this)">
+                        <span>right</span>
+                    </div>
+                    <div class="viewport-input-field">
+                        <input type="number" id="asset-viewport-bottom-${index}" value="${vp.bottom}"
+                            min="0" max="100" step="1"
+                            onchange="updateAssetViewportField(${index}, 'bottom', this.value, this)">
+                        <span>bottom</span>
+                    </div>
+                    <div class="viewport-input-field">
+                        <input type="number" id="asset-viewport-left-${index}" value="${vp.left}"
+                            min="0" max="100" step="1"
+                            onchange="updateAssetViewportField(${index}, 'left', this.value, this)">
+                        <span>left</span>
+                    </div>
+                </div>
             </div>
-            <div class="form-group">
-                <label for="asset-zDepth-${index}">zDepth:</label>
-                <input type="number" id="asset-zDepth-${index}" value="${asset.zDepth}" 
-                    min="0" onchange="updateAsset(${index}, 'zDepth', parseInt(this.value) || 0)">
-            </div>
-            <div class="form-group">
-                <label for="asset-volume-${index}">volume:</label>
-                <input type="number" id="asset-volume-${index}" value="${asset.volume}" 
-                    min="0" max="100" onchange="updateAsset(${index}, 'volume', parseInt(this.value) || 0)">
-            </div>
-            <div class="form-group">
-                <label for="asset-scale-${index}">scale:</label>
-                <input type="number" id="asset-scale-${index}" value="${asset.scale}" 
-                    min="0" max="100" onchange="updateAsset(${index}, 'scale', parseInt(this.value) || 0)">
-            </div>
-            <div class="form-group">
-                <label for="asset-horizontalPadding-${index}">horizontalPadding:</label>
-                <input type="number" id="asset-horizontalPadding-${index}" value="${asset.horizontalPadding}" 
-                    min="-100" max="100" onchange="updateAsset(${index}, 'horizontalPadding', parseInt(this.value) || 0)">
-            </div>
-            <div class="form-group">
-                <label for="asset-verticalPadding-${index}">verticalPadding:</label>
-                <input type="number" id="asset-verticalPadding-${index}" value="${asset.verticalPadding}" 
-                    min="-100" max="100" onchange="updateAsset(${index}, 'verticalPadding', parseInt(this.value) || 0)">
+            <div class="form-row-compact">
+                <div class="form-group form-group-compact">
+                    <label for="asset-zDepth-${index}">zDepth:</label>
+                    <input type="number" id="asset-zDepth-${index}" value="${asset.zDepth}" 
+                        min="0" onchange="updateAsset(${index}, 'zDepth', parseInt(this.value) || 0)">
+                </div>
+                <div class="form-group form-group-compact">
+                    <label for="asset-volume-${index}">volume:</label>
+                    <input type="number" id="asset-volume-${index}" value="${asset.volume}" 
+                        min="0" max="100" onchange="updateAsset(${index}, 'volume', parseInt(this.value) || 0)">
+                </div>
             </div>
         </div>
         <button class="btn-danger" onclick="removeAsset(${index})">Remove Asset</button>
@@ -495,6 +572,19 @@ function updateAsset(index, property, value) {
         // Use setTimeout to allow DOM to update before adjusting height
         setTimeout(adjustPreviewHeight, 0);
     }
+}
+
+function updateAssetViewportField(index, field, value, inputEl) {
+    if (!state.assets[index]) return;
+    if (!state.assets[index].viewport) {
+        state.assets[index].viewport = { top: 0, right: 0, bottom: 0, left: 0 };
+    }
+    const clamped = clampViewportValue(value);
+    state.assets[index].viewport[field] = clamped;
+    if (inputEl) inputEl.value = clamped;
+    updateJSON();
+    renderPreview();
+    setTimeout(adjustPreviewHeight, 0);
 }
 
 function updateAssetLabel(index, idValue) {
@@ -523,104 +613,34 @@ function removeAsset(index) {
 }
 
 function adjustPreviewHeight() {
-    const assetFormSection = document.querySelector('.asset-form-section');
-    const assetPreviewSection = document.querySelector('.asset-preview-section');
+    // Layout is now driven entirely by CSS grid + flex (see styles.css).
+    // Clear any stale inline height so flex rules take effect.
     const jsonPreview = document.querySelector('.json-preview');
-    
-    if (assetFormSection && assetPreviewSection && jsonPreview) {
-        // Get the height of the asset form section (which grows as assets are added)
-        const assetFormHeight = assetFormSection.offsetHeight;
-        
-        // Get the preview section header height
-        const previewHeader = assetPreviewSection.querySelector('h2');
-        const previewHeaderHeight = previewHeader ? previewHeader.offsetHeight + 15 : 0; // 15px for margin-bottom
-        
-        // Get the preview section padding (15px top and bottom = 30px)
-        const previewSectionPadding = 30;
-        
-        // Calculate available height for preview
-        // Match the asset form section height, accounting for header and padding
-        const availableHeight = assetFormHeight - previewHeaderHeight - previewSectionPadding;
-        
-        // Set minimum height to ensure it's always visible
-        const minHeight = 200;
-        jsonPreview.style.height = `${Math.max(availableHeight, minHeight)}px`;
+    if (jsonPreview && jsonPreview.style.height) {
+        jsonPreview.style.height = '';
     }
 }
 
 function calculatePosition(asset, playerWidth, playerHeight) {
-    const scale = asset.scale || 100;
-    const horizontalPadding = asset.horizontalPadding || 0;
-    const verticalPadding = asset.verticalPadding || 0;
-    const anchorPosition = asset.anchorPosition || 'topLeft';
+    const vp = asset.viewport || { top: 0, right: 0, bottom: 0, left: 0 };
     
-    // Calculate scaled dimensions
-    const scaledWidth = (playerWidth * scale) / 100;
-    const scaledHeight = (playerHeight * scale) / 100;
+    // Viewport insets in pixels (% of player area)
+    const leftPx = (playerWidth * vp.left) / 100;
+    const rightPx = (playerWidth * vp.right) / 100;
+    const topPx = (playerHeight * vp.top) / 100;
+    const bottomPx = (playerHeight * vp.bottom) / 100;
     
-    // Calculate padding in pixels
-    const horizontalPaddingPx = (playerWidth * horizontalPadding) / 100;
-    const verticalPaddingPx = (playerHeight * verticalPadding) / 100;
-    
-    let left, top;
-    
-    // Determine horizontal position based on anchorPosition
-    // horizontalPadding applied to LEFT for: left, topLeft, bottomLeft, top, bottom, center
-    // horizontalPadding applied to RIGHT for: topRight, bottomRight, right
-    switch (anchorPosition) {
-        case 'topLeft':
-        case 'bottomLeft':
-        case 'left':
-            left = horizontalPaddingPx;
-            break;
-        case 'topRight':
-        case 'bottomRight':
-        case 'right':
-            left = playerWidth - scaledWidth - horizontalPaddingPx;
-            break;
-        case 'top':
-        case 'bottom':
-        case 'center':
-            // Centered horizontally, horizontalPadding shifts left/right
-            left = (playerWidth - scaledWidth) / 2 + horizontalPaddingPx;
-            break;
-        default:
-            left = horizontalPaddingPx;
-    }
-    
-    // Determine vertical position based on anchorPosition
-    // verticalPadding applied to TOP for: topLeft, topRight, top, left, right, center
-    // verticalPadding applied to BOTTOM for: bottomLeft, bottomRight, bottom
-    switch (anchorPosition) {
-        case 'topLeft':
-        case 'topRight':
-        case 'top':
-            top = verticalPaddingPx;
-            break;
-        case 'bottomLeft':
-        case 'bottomRight':
-        case 'bottom':
-            top = playerHeight - scaledHeight - verticalPaddingPx;
-            break;
-        case 'left':
-        case 'right':
-        case 'center':
-            // Centered vertically, verticalPadding shifts up/down
-            top = (playerHeight - scaledHeight) / 2 + verticalPaddingPx;
-            break;
-        default:
-            top = verticalPaddingPx;
-    }
+    // Layout box (position + size in pixels) computed CSS-inset style
+    const width = Math.max(0, playerWidth - leftPx - rightPx);
+    const height = Math.max(0, playerHeight - topPx - bottomPx);
     
     return {
-        left,
-        top,
-        width: scaledWidth,
-        height: scaledHeight,
-        horizontalPaddingPx,
-        verticalPaddingPx,
-        horizontalPadding,
-        verticalPadding
+        left: leftPx,
+        top: topPx,
+        width,
+        height,
+        viewport: vp,
+        viewportPx: { top: topPx, right: rightPx, bottom: bottomPx, left: leftPx }
     };
 }
 
@@ -660,9 +680,12 @@ function renderPreview() {
     primaryContent.style.top = `${primaryPos.top}px`;
     primaryContent.style.width = `${primaryPos.width}px`;
     primaryContent.style.height = `${primaryPos.height}px`;
-    primaryContent.style.zIndex = state.primaryContent.zDepth || 0;
+    primaryContent.style.zIndex = state.primaryContent.zDepth !== undefined
+        ? state.primaryContent.zDepth
+        : 0;
     
-    // Sort assets by zDepth
+    // Sort assets by zDepth (ascending) so later-painted DOM nodes are on top,
+    // which matches their zDepth given z-index ties (same zDepth) resolve by DOM order.
     const sortedAssets = [...state.assets].sort((a, b) => {
         const aDepth = a.zDepth !== undefined ? a.zDepth : 0;
         const bDepth = b.zDepth !== undefined ? b.zDepth : 0;
@@ -680,7 +703,7 @@ function renderPreview() {
         overlay.style.top = `${pos.top}px`;
         overlay.style.width = `${pos.width}px`;
         overlay.style.height = `${pos.height}px`;
-        overlay.style.zIndex = asset.zDepth !== undefined ? asset.zDepth + 1 : index + 1;
+        overlay.style.zIndex = asset.zDepth !== undefined ? asset.zDepth : 0;
         
         const assetInfo = document.createElement('div');
         assetInfo.className = 'asset-info';
@@ -691,109 +714,120 @@ function renderPreview() {
         overlay.appendChild(assetInfo);
         overlayContainer.appendChild(overlay);
         
-        // Draw annotations for elements not at 100% scale or with padding
-        // Requirements: "For any element not rendered at a scale of 100%... there should be a textual annotation"
-        if (asset.scale !== 100 || asset.horizontalPadding !== 0 || asset.verticalPadding !== 0) {
+        // Draw annotations for elements that don't fill the player (non-zero viewport inset)
+        if (viewportHasInset(asset.viewport)) {
             drawAnnotations(svg, asset, pos, playerWidth, playerHeight);
         }
     });
     
-    // Draw annotations for primaryContent if not at 100% scale or with padding
-    if (state.primaryContent.scale !== 100 || state.primaryContent.horizontalPadding !== 0 || state.primaryContent.verticalPadding !== 0) {
+    // Draw annotations for primaryContent if it has a viewport inset
+    if (viewportHasInset(state.primaryContent.viewport)) {
         drawAnnotations(svg, state.primaryContent, primaryPos, playerWidth, playerHeight);
     }
 }
 
 function drawAnnotations(svg, asset, pos, playerWidth, playerHeight) {
-    const anchorPosition = asset.anchorPosition || 'topLeft';
-    const horizontalPadding = asset.horizontalPadding || 0;
-    const verticalPadding = asset.verticalPadding || 0;
-    const scale = asset.scale !== undefined ? asset.scale : 100;
+    const vp = asset.viewport || { top: 0, right: 0, bottom: 0, left: 0 };
+    const viewportPx = pos.viewportPx || {
+        top: (playerHeight * vp.top) / 100,
+        right: (playerWidth * vp.right) / 100,
+        bottom: (playerHeight * vp.bottom) / 100,
+        left: (playerWidth * vp.left) / 100
+    };
     
-    // Draw horizontal padding annotation
-    // Show annotation if padding is not 0 OR if scale is not 100%
-    if (horizontalPadding !== 0 || scale !== 100) {
-        let x1, x2, y, textX, textY;
-        
-        // Determine which side the padding is on based on anchorPosition
-        // LEFT side: left, topLeft, bottomLeft, top, bottom, center
-        // RIGHT side: topRight, bottomRight, right
-        if (['topLeft', 'bottomLeft', 'left', 'top', 'bottom', 'center'].includes(anchorPosition)) {
-            // Left side padding
-            x1 = 0;
-            x2 = pos.left;
-            y = pos.top + pos.height / 2;
-            textX = pos.left / 2;
-            textY = y - 8;
-        } else {
-            // Right side padding (topRight, bottomRight, right)
-            x1 = pos.left + pos.width;
-            x2 = playerWidth;
-            y = pos.top + pos.height / 2;
-            textX = (x1 + x2) / 2;
-            textY = y - 8;
-        }
-        
-        // Draw line
+    const vpLeft = viewportPx.left;
+    const vpTop = viewportPx.top;
+    const vpRight = vpLeft + pos.width;
+    const vpBottom = vpTop + pos.height;
+    
+    // Horizontal midline for left/right annotations; vertical midline for top/bottom
+    const midY = vpTop + pos.height / 2;
+    const midX = vpLeft + pos.width / 2;
+    
+    function addLine(x1, y1, x2, y2) {
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         line.setAttribute('x1', x1);
-        line.setAttribute('y1', y);
-        line.setAttribute('x2', x2);
-        line.setAttribute('y2', y);
-        line.setAttribute('class', 'annotation-line');
-        svg.appendChild(line);
-        
-        // Draw text
-        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.setAttribute('x', textX);
-        text.setAttribute('y', textY);
-        text.setAttribute('class', 'annotation-text');
-        text.setAttribute('text-anchor', 'middle');
-        text.textContent = `${horizontalPadding}% | ${Math.round(Math.abs(pos.horizontalPaddingPx))}px`;
-        svg.appendChild(text);
-    }
-    
-    // Draw vertical padding annotation
-    // Show annotation if padding is not 0 OR if scale is not 100%
-    if (verticalPadding !== 0 || scale !== 100) {
-        let x, y1, y2, textX, textY;
-        
-        // Determine which side the padding is on based on anchorPosition
-        // TOP side: topLeft, topRight, top, left, right, center
-        // BOTTOM side: bottomLeft, bottomRight, bottom
-        if (['topLeft', 'topRight', 'top', 'left', 'right', 'center'].includes(anchorPosition)) {
-            // Top side padding
-            x = pos.left + pos.width / 2;
-            y1 = 0;
-            y2 = pos.top;
-            textX = x + 8;
-            textY = pos.top / 2;
-        } else {
-            // Bottom side padding (bottomLeft, bottomRight, bottom)
-            x = pos.left + pos.width / 2;
-            y1 = pos.top + pos.height;
-            y2 = playerHeight;
-            textX = x + 8;
-            textY = (y1 + y2) / 2;
-        }
-        
-        // Draw line
-        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        line.setAttribute('x1', x);
         line.setAttribute('y1', y1);
-        line.setAttribute('x2', x);
+        line.setAttribute('x2', x2);
         line.setAttribute('y2', y2);
         line.setAttribute('class', 'annotation-line');
         svg.appendChild(line);
+    }
+    
+    // Draw a text label wrapped in a white/black badge, clamped so it stays
+    // fully visible within the player bounds. Overlap with the annotated
+    // element is acceptable.
+    function addBadge(x, y, content, anchor, baseline) {
+        const PAD_X = 3;
+        const PAD_Y = 1;
+        const MARGIN = 2;
         
-        // Draw text
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        svg.appendChild(g);
+        
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.setAttribute('x', textX);
-        text.setAttribute('y', textY);
         text.setAttribute('class', 'annotation-text');
-        text.setAttribute('dominant-baseline', 'middle');
-        text.textContent = `${verticalPadding}% | ${Math.round(Math.abs(pos.verticalPaddingPx))}px`;
-        svg.appendChild(text);
+        text.setAttribute('x', x);
+        text.setAttribute('y', y);
+        if (anchor) text.setAttribute('text-anchor', anchor);
+        if (baseline) text.setAttribute('dominant-baseline', baseline);
+        text.textContent = content;
+        g.appendChild(text);
+        
+        let bbox;
+        try {
+            bbox = text.getBBox();
+        } catch (_) {
+            return;
+        }
+        
+        // Compute shift needed so the badge stays within player bounds
+        const badgeLeft = bbox.x - PAD_X;
+        const badgeRight = bbox.x + bbox.width + PAD_X;
+        const badgeTop = bbox.y - PAD_Y;
+        const badgeBottom = bbox.y + bbox.height + PAD_Y;
+        
+        let dx = 0;
+        let dy = 0;
+        if (badgeLeft < MARGIN) dx = MARGIN - badgeLeft;
+        else if (badgeRight > playerWidth - MARGIN) dx = (playerWidth - MARGIN) - badgeRight;
+        if (badgeTop < MARGIN) dy = MARGIN - badgeTop;
+        else if (badgeBottom > playerHeight - MARGIN) dy = (playerHeight - MARGIN) - badgeBottom;
+        
+        if (dx !== 0) text.setAttribute('x', x + dx);
+        if (dy !== 0) text.setAttribute('y', y + dy);
+        
+        let finalBbox;
+        try {
+            finalBbox = text.getBBox();
+        } catch (_) {
+            finalBbox = bbox;
+        }
+        
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', finalBbox.x - PAD_X);
+        rect.setAttribute('y', finalBbox.y - PAD_Y);
+        rect.setAttribute('width', finalBbox.width + PAD_X * 2);
+        rect.setAttribute('height', finalBbox.height + PAD_Y * 2);
+        rect.setAttribute('class', 'annotation-badge');
+        g.insertBefore(rect, text);
+    }
+    
+    if (vp.left !== 0) {
+        addLine(0, midY, vpLeft, midY);
+        addBadge(vpLeft / 2, midY - 6, `L: ${vp.left}% | ${Math.round(viewportPx.left)}px`, 'middle', null);
+    }
+    if (vp.right !== 0) {
+        addLine(vpRight, midY, playerWidth, midY);
+        addBadge((vpRight + playerWidth) / 2, midY - 6, `R: ${vp.right}% | ${Math.round(viewportPx.right)}px`, 'middle', null);
+    }
+    if (vp.top !== 0) {
+        addLine(midX, 0, midX, vpTop);
+        addBadge(midX + 6, vpTop / 2, `T: ${vp.top}% | ${Math.round(viewportPx.top)}px`, null, 'middle');
+    }
+    if (vp.bottom !== 0) {
+        addLine(midX, vpBottom, midX, playerHeight);
+        addBadge(midX + 6, (vpBottom + playerHeight) / 2, `B: ${vp.bottom}% | ${Math.round(viewportPx.bottom)}px`, null, 'middle');
     }
 }
 
@@ -813,36 +847,35 @@ function buildDashXml() {
     const durationSeconds = 15.015;
     const primary = state.primaryContent;
     const assets = state.assets || [];
+    const includePrimary = !isPrimaryContentAtDefaults();
 
-    const primaryXml =
-        '        <svta:PrimaryContent \n' +
-        '            id="primaryContent"\n' +
-        '            uri="&lt;PATH TO PRIMARY CONTENT&gt;"\n' +
-        `            zDepth="${primary.zDepth !== undefined ? primary.zDepth : 1}"\n` +
-        `            volume="${primary.volume !== undefined ? primary.volume : 100}"\n` +
-        `            anchorPosition="${escapeXml(primary.anchorPosition || 'topLeft')}"\n` +
-        `            horizontalPadding="${primary.horizontalPadding !== undefined ? primary.horizontalPadding : 0}"\n` +
-        `            verticalPadding="${primary.verticalPadding !== undefined ? primary.verticalPadding : 0}"\n` +
-        `            scale="${primary.scale !== undefined ? primary.scale : 100}"/>`;
+    const primaryXml = includePrimary
+        ? (
+            '            <svta:PrimaryContent \n' +
+            '                id="primaryContent"\n' +
+            '                uri="[PATH TO PRIMARY CONTENT]"\n' +
+            `                zDepth="${primary.zDepth !== undefined ? primary.zDepth : 1}"\n` +
+            `                volume="${primary.volume !== undefined ? primary.volume : 100}"\n` +
+            `                viewport="${escapeXml(formatViewport(primary.viewport))}"/>`
+        )
+        : '';
 
     const assetLines = assets.map(asset => {
         return (
-            '        <svta:Asset \n' +
-            `            id="${escapeXml(asset.id || '')}"\n` +
-            `            type="${escapeXml(asset.type || '')}"\n` +
-            `            uri="${escapeXml(asset.uri || '')}"\n` +
-            `            anchorPosition="${escapeXml(asset.anchorPosition || 'topLeft')}"\n` +
-            `            zDepth="${asset.zDepth !== undefined ? asset.zDepth : 0}"\n` +
-            `            volume="${asset.volume !== undefined ? asset.volume : 100}"\n` +
-            `            scale="${asset.scale !== undefined ? asset.scale : 100}"\n` +
-            `            horizontalPadding="${asset.horizontalPadding !== undefined ? asset.horizontalPadding : 0}"\n` +
-            `            verticalPadding="${asset.verticalPadding !== undefined ? asset.verticalPadding : 0}"/>`
+            '            <svta:Asset \n' +
+            `                id="${escapeXml(asset.id || '')}"\n` +
+            `                type="${escapeXml(asset.type || '')}"\n` +
+            `                uri="${escapeXml(asset.uri || '')}"\n` +
+            `                viewport="${escapeXml(formatViewport(asset.viewport))}"\n` +
+            `                zDepth="${asset.zDepth !== undefined ? asset.zDepth : 0}"\n` +
+            `                volume="${asset.volume !== undefined ? asset.volume : 100}"/>`
         );
     }).join('\n');
 
-    const overlayInner = assetLines
-        ? `${primaryXml}\n${assetLines}`
-        : primaryXml;
+    let overlayInner;
+    if (primaryXml && assetLines) overlayInner = `${primaryXml}\n${assetLines}`;
+    else if (primaryXml) overlayInner = primaryXml;
+    else overlayInner = assetLines;
 
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n' +
@@ -854,9 +887,9 @@ function buildDashXml() {
         '     minBufferTime="PT1S"\n' +
         '     profiles="urn:svta:dash:profile:overlays:2026">\n\n' +
         `    <Period id="overlay-video" duration="PT${durationSeconds.toFixed(3)}S">\n\n` +
-        '        <svta:Overlay>\n' +
+        `        <svta:ConcurrentElements layoutMode="${escapeXml(state.adType || '')}">\n` +
         `${overlayInner}\n` +
-        '        </svta:Overlay>\n' +
+        '        </svta:ConcurrentElements>\n' +
         '    </Period>\n\n' +
         '</MPD>\n'
     );
@@ -874,9 +907,26 @@ function updateJSON() {
         jsonPreview.className = 'language-xml';
     } else {
         // Default HLS JSON output
+        const layout = {};
+        if (!isPrimaryContentAtDefaults()) {
+            layout.primaryContent = {
+                zDepth: state.primaryContent.zDepth,
+                volume: state.primaryContent.volume,
+                viewport: formatViewport(state.primaryContent.viewport)
+            };
+        }
+        layout.assets = state.assets.map(asset => ({
+            id: asset.id,
+            type: asset.type,
+            uri: asset.uri,
+            viewport: formatViewport(asset.viewport),
+            zDepth: asset.zDepth,
+            volume: asset.volume
+        }));
+        
         const jsonData = {
             ASSETS: [{
-                URI: "<PATH TO ASSET>",
+                URI: "[PATH TO ASSET]",
                 DURATION: 15.015,
                 "X-AD-CREATIVE-SIGNALING": {
                     version: 2,
@@ -885,27 +935,7 @@ function updateJSON() {
                         type: state.adType,
                         start: 0.0,
                         duration: 15.015,
-                        layout: {
-                            primaryContent: {
-                                zDepth: state.primaryContent.zDepth,
-                                volume: state.primaryContent.volume,
-                                anchorPosition: state.primaryContent.anchorPosition,
-                                horizontalPadding: state.primaryContent.horizontalPadding,
-                                verticalPadding: state.primaryContent.verticalPadding,
-                                scale: state.primaryContent.scale
-                            },
-                            assets: state.assets.map(asset => ({
-                                id: asset.id,
-                                type: asset.type,
-                                uri: asset.uri,
-                                anchorPosition: asset.anchorPosition,
-                                zDepth: asset.zDepth,
-                                volume: asset.volume,
-                                scale: asset.scale,
-                                horizontalPadding: asset.horizontalPadding,
-                                verticalPadding: asset.verticalPadding
-                            }))
-                        }
+                        layout: layout
                     }]
                 }
             }]
@@ -926,8 +956,10 @@ function updateJSON() {
 
 // Make functions available globally for inline event handlers
 window.updateAsset = updateAsset;
+window.updateAssetViewportField = updateAssetViewportField;
 window.removeAsset = removeAsset;
 window.updatePrimaryContent = updatePrimaryContent;
+window.updatePrimaryContentViewportField = updatePrimaryContentViewportField;
 window.togglePrimaryContentForm = togglePrimaryContentForm;
 window.updateAssetLabel = updateAssetLabel;
 window.togglePlayerSize = togglePlayerSize;
