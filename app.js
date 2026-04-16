@@ -412,7 +412,7 @@ function renderPrimaryContentForm() {
                     <div class="form-group form-group-compact">
                         <label for="primary-zDepth">zDepth:</label>
                         <input type="number" id="primary-zDepth" value="${pc.zDepth}" 
-                            min="0" onchange="updatePrimaryContent('zDepth', parseInt(this.value) || 0)">
+                            onchange="updatePrimaryContent('zDepth', parseInt(this.value, 10) || 0)">
                     </div>
                     <div class="form-group form-group-compact">
                         <label for="primary-volume">volume:</label>
@@ -548,7 +548,7 @@ function renderAssetForm(asset, index) {
                 <div class="form-group form-group-compact">
                     <label for="asset-zDepth-${index}">zDepth:</label>
                     <input type="number" id="asset-zDepth-${index}" value="${asset.zDepth}" 
-                        min="0" onchange="updateAsset(${index}, 'zDepth', parseInt(this.value) || 0)">
+                        onchange="updateAsset(${index}, 'zDepth', parseInt(this.value, 10) || 0)">
                 </div>
                 <div class="form-group form-group-compact">
                     <label for="asset-volume-${index}">volume:</label>
