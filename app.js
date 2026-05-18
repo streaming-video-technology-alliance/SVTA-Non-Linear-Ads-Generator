@@ -1,6 +1,105 @@
+// Per adType: primary content layout and assets added on the first ADD ASSET click.
+// Viewport values are top, right, bottom, left as % of the player area.
+// Subsequent ADD ASSET clicks add a single cornerOverlay-style asset.
+const AD_TYPE_LAYOUTS = {
+    cornerOverlay: {
+        primaryContent: {
+            zDepth: 0,
+            volume: 100,
+            viewport: { top: 0, right: 0, bottom: 0, left: 0 }
+        },
+        newAssetDefaults: [
+            { viewport: { top: 0, right: 75, bottom: 75, left: 0 } }
+        ]
+    },
+    lowerThirdOverlay: {
+        primaryContent: {
+            zDepth: 0,
+            volume: 100,
+            viewport: { top: 0, right: 0, bottom: 0, left: 0 }
+        },
+        newAssetDefaults: [
+            { viewport: { top: 70, right: 0, bottom: 0, left: 0 } }
+        ]
+    },
+    squeezebackFrame: {
+        primaryContent: {
+            zDepth: 1,
+            volume: 100,
+            viewport: { top: 20, right: 20, bottom: 20, left: 20 }
+        },
+        newAssetDefaults: [
+            { viewport: { top: 0, right: 0, bottom: 0, left: 0 }, zDepth: 0 }
+        ]
+    },
+    squeezebackDoubleBox: {
+        primaryContent: {
+            zDepth: 0,
+            volume: 100,
+            viewport: { top: 25, right: 50, bottom: 25, left: 0 }
+        },
+        newAssetDefaults: [
+            { id: 'adOverlay', viewport: { top: 25, right: 0, bottom: 25, left: 50 } }
+        ]
+    },
+    squeezebackLShape: {
+        primaryContent: {
+            zDepth: 0,
+            volume: 100,
+            viewport: { top: 0, right: 40, bottom: 40, left: 0 }
+        },
+        newAssetDefaults: [
+            { id: 'adBarVertical', viewport: { top: 0, right: 0, bottom: 0, left: 60 }, zDepth: 1 },
+            { id: 'adBarHorizontal', viewport: { top: 60, right: 0, bottom: 0, left: 0 }, zDepth: 2 }
+        ]
+    },
+    multiView: {
+        primaryContent: {
+            zDepth: 0,
+            volume: 100,
+            viewport: { top: 0, right: 50, bottom: 50, left: 0 }
+        },
+        newAssetDefaults: [
+            { id: 'view2', viewport: { top: 0, right: 0, bottom: 50, left: 50 }, zDepth: 1 },
+            { id: 'view3', viewport: { top: 50, right: 50, bottom: 0, left: 0 }, zDepth: 2 },
+            { id: 'view4', viewport: { top: 50, right: 0, bottom: 0, left: 50 }, zDepth: 3 }
+        ]
+    }
+};
+
+function getAdTypeLayout(adType) {
+    return AD_TYPE_LAYOUTS[adType] || AD_TYPE_LAYOUTS.cornerOverlay;
+}
+
+function cloneViewport(vp) {
+    return { top: vp.top, right: vp.right, bottom: vp.bottom, left: vp.left };
+}
+
+function applyAdTypeLayout(adType) {
+    const preset = getAdTypeLayout(adType);
+
+    state.primaryContent = {
+        zDepth: preset.primaryContent.zDepth,
+        volume: preset.primaryContent.volume,
+        viewport: cloneViewport(preset.primaryContent.viewport)
+    };
+    state.assets = [];
+
+    const container = document.getElementById('assetForms');
+    container.innerHTML = '';
+    state.assets.forEach((asset, idx) => {
+        renderAssetForm(asset, idx);
+    });
+
+    renderPrimaryContentForm();
+    updateJSON();
+    renderPreview();
+    setTimeout(adjustPreviewHeight, 0);
+}
+
 // Application state
 const state = {
-    adType: 'overlay',
+    adType: 'cornerOverlay',
     outputFormat: 'hls', // 'hls' (JSON) or 'dash' (XML)
     assets: [],
     primaryContent: {
@@ -8,7 +107,6 @@ const state = {
         volume: 100,
         viewport: { top: 0, right: 0, bottom: 0, left: 0 }
     },
-    assetCounter: 0,
     playerSizeLocked: false,
     lockedPlayerWidth: 0,
     lockedPlayerHeight: 0
@@ -114,22 +212,20 @@ function initializeApp() {
         playerHeightInput.addEventListener('blur', handleDimensionChange);
     }
     
-    // Render primary content form
-    renderPrimaryContentForm();
+    // Apply default layout for the selected adType
+    const adTypeSelect = document.getElementById('adType');
+    state.adType = adTypeSelect ? adTypeSelect.value : state.adType;
+    applyAdTypeLayout(state.adType);
     
     // Wire up drag-to-resize on the preview player
     initializePlayerResize();
     
-    // Initial render
-    updateJSON();
-    renderPreview();
     adjustPreviewHeight();
 }
 
 function handleAdTypeChange(e) {
     state.adType = e.target.value;
-    updateJSON();
-    renderPreview();
+    applyAdTypeLayout(state.adType);
 }
 
 function handleFormatChange(e) {
@@ -461,26 +557,37 @@ function updatePrimaryContentViewportField(field, value, inputEl) {
     renderPreview();
 }
 
-function handleAddAsset() {
-    // Default zDepth: one above the last added asset, or 1 (above primary content's default of 0).
+function createAssetFromTemplate(template) {
     const lastAsset = state.assets[state.assets.length - 1];
-    const defaultZDepth = lastAsset && lastAsset.zDepth !== undefined
-        ? lastAsset.zDepth + 1
-        : 1;
-    
-    const newAsset = {
-        id: `adOverlay${state.assetCounter + 1}`,
+    const defaultZDepth = template.zDepth !== undefined
+        ? template.zDepth
+        : (lastAsset && lastAsset.zDepth !== undefined ? lastAsset.zDepth + 1 : 1);
+
+    return {
+        id: template.id || `adOverlay${state.assets.length + 1}`,
         type: 'application/vnd.apple.mpegurl',
         uri: '',
-        viewport: { top: 5, right: 75, bottom: 75, left: 5 },
+        viewport: cloneViewport(template.viewport),
         zDepth: defaultZDepth,
         volume: 100
     };
-    
-    state.assets.push(newAsset);
-    state.assetCounter++;
-    
-    renderAssetForm(newAsset, state.assets.length - 1);
+}
+
+function handleAddAsset() {
+    if (state.assets.length === 0) {
+        const defaults = getAdTypeLayout(state.adType).newAssetDefaults || [];
+        defaults.forEach(template => {
+            const newAsset = createAssetFromTemplate(template);
+            state.assets.push(newAsset);
+            renderAssetForm(newAsset, state.assets.length - 1);
+        });
+    } else {
+        const cornerTemplate = AD_TYPE_LAYOUTS.cornerOverlay.newAssetDefaults[0];
+        const newAsset = createAssetFromTemplate(cornerTemplate);
+        state.assets.push(newAsset);
+        renderAssetForm(newAsset, state.assets.length - 1);
+    }
+
     updateJSON();
     renderPreview();
     adjustPreviewHeight();
