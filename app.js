@@ -999,7 +999,7 @@ function buildDashXml() {
         '     xmlns="urn:mpeg:dash:schema:mpd:2011"\n' +
         '     xmlns:svta="urn:svta:dash:schema:overlay:2026"\n' +
         '     xsi:schemaLocation="urn:mpeg:dash:schema:mpd:2011 DASH-MPD.xsd"\n' +
-        '     type="overlays"\n' +
+        `     type="${escapeXml(state.adType || '')}"\n` +
         '     minBufferTime="PT1S"\n' +
         '     profiles="urn:svta:dash:profile:overlays:2026">\n\n' +
         `    <Period id="overlay-video" duration="PT${durationSeconds.toFixed(3)}S">\n\n` +
