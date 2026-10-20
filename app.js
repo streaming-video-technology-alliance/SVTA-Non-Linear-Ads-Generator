@@ -1,14 +1,24 @@
-// Per adType: primary content layout and assets added on the first ADD ASSET click.
-// Defaults follow SVTA2053 v4 (HLS update), 5.3.2 Table 20 "Default Layouts", which
-// aligns in structure and position with the IAB Tech Lab Ad Format Guidelines for
-// Digital Video & CTV v2.0. multiView keeps the four-view layout (Table 20 / Table 22).
+// Per adType dropdown value: primary content layout and assets added on the first
+// ADD ASSET click. Defaults follow SVTA2053 v4 (HLS update), 5.3.2 Table 20
+// "Default Layouts", which aligns in structure and position with the IAB Tech Lab
+// Ad Format Guidelines for Digital Video & CTV v2.0. multiView keeps the four-view
+// layout (Table 20 / Table 22).
 // Viewport values are top, right, bottom, left as % of the player area.
 // Subsequent ADD ASSET clicks add a single cornerOverlay-style asset.
 // Volume is not part of any preset: primary content inherits the volume already
 // playing, and additional assets default to 0 (muted), per AssetLayout (Table 11).
-// An adType with several valid layouts lists them in AD_TYPE_VARIANTS; the first is
-// the default and is stored under the adType key, the others under "adType:variant".
+// presentationType is the PresentationType written to layoutOptions[].type; it
+// defaults to the key. Several dropdown entries can share one PresentationType
+// (the squeezebackLShape forms). The empty key "" is "no adType": no preset, and no
+// signaling until assets are added.
 const AD_TYPE_LAYOUTS = {
+    '': {
+        primaryContent: {
+            zDepth: 0,
+            viewport: { top: 0, right: 0, bottom: 0, left: 0 }
+        },
+        newAssetDefaults: []
+    },
     cornerOverlay: {
         primaryContent: {
             zDepth: 0,
@@ -45,9 +55,9 @@ const AD_TYPE_LAYOUTS = {
             { id: 'adSideBySide', viewport: { top: 25, right: 0, bottom: 25, left: 50 }, zDepth: 1 }
         ]
     },
-    // Backplate form (Table 20): one full-frame underlay whose artwork forms the L,
-    // with the primary content scaled to the upper right on top of it. Needs two
-    // video decoders, versus three for the two-bar form (5.3.3).
+    // Backplate form (Table 20 default): one full-frame underlay whose artwork forms
+    // the L, with the primary content scaled to the upper right on top of it. Needs
+    // two video decoders, versus three for the two-bar form (5.3.3).
     squeezebackLShape: {
         primaryContent: {
             zDepth: 1,
@@ -57,10 +67,23 @@ const AD_TYPE_LAYOUTS = {
             { id: 'lBackplate', viewport: { top: 0, right: 0, bottom: 0, left: 0 }, zDepth: 0 }
         ]
     },
+    // Backplate form, reversed L: primary content in the upper left ("0 25 25 0",
+    // 5.3.2); IAB signaling has both an L shape and a reversed L shape (5.3.5).
+    'squeezebackLShape-left': {
+        presentationType: 'squeezebackLShape',
+        primaryContent: {
+            zDepth: 1,
+            viewport: { top: 0, right: 25, bottom: 25, left: 0 }
+        },
+        newAssetDefaults: [
+            { id: 'lBackplate', viewport: { top: 0, right: 0, bottom: 0, left: 0 }, zDepth: 0 }
+        ]
+    },
     // Two-bar form (5.3.2, as emitted by the Layout Controller): primary content in
     // the upper left with separate vertical and horizontal ad bars. Needs three
     // video decoders when both bars are video.
-    'squeezebackLShape:twoBar': {
+    'squeezebackLShape-2bars': {
+        presentationType: 'squeezebackLShape',
         primaryContent: {
             zDepth: 0,
             viewport: { top: 0, right: 40, bottom: 40, left: 0 }
@@ -83,45 +106,50 @@ const AD_TYPE_LAYOUTS = {
     }
 };
 
-// Layout variants per adType, first entry is the default (stored under the adType key).
-const AD_TYPE_VARIANTS = {
-    squeezebackLShape: [
-        { key: 'backplate', label: 'backplate (default)' },
-        { key: 'twoBar', label: 'two bars' }
-    ]
-};
+// PresentationType values (Table 2), offered as suggestions for an asset's option type.
+const PRESENTATION_TYPES = [
+    'cornerOverlay',
+    'lowerThirdOverlay',
+    'squeezebackFrame',
+    'squeezebackDoubleBox',
+    'squeezebackLShape',
+    'multiView'
+];
 
-function getAdTypeVariants(adType) {
-    return AD_TYPE_VARIANTS[adType] || [];
+function getAdTypeLayout(adType) {
+    return Object.prototype.hasOwnProperty.call(AD_TYPE_LAYOUTS, adType)
+        ? AD_TYPE_LAYOUTS[adType]
+        : AD_TYPE_LAYOUTS[''];
 }
 
-function getAdTypeLayout(adType, variant) {
-    const variants = getAdTypeVariants(adType);
-    if (variant && variants.length && variant !== variants[0].key) {
-        const keyed = AD_TYPE_LAYOUTS[`${adType}:${variant}`];
-        if (keyed) return keyed;
-    }
-    return AD_TYPE_LAYOUTS[adType] || AD_TYPE_LAYOUTS.cornerOverlay;
+// PresentationType for a dropdown value; '' for "no adType".
+function getPresentationType(adType) {
+    if (!adType) return '';
+    const preset = AD_TYPE_LAYOUTS[adType];
+    return (preset && preset.presentationType) || adType;
 }
 
-function renderLayoutVariantSelect() {
-    const group = document.getElementById('layoutVariantGroup');
-    const select = document.getElementById('layoutVariant');
-    if (!group || !select) return;
-    const variants = getAdTypeVariants(state.adType);
-    if (!variants.length) {
-        group.hidden = true;
-        select.innerHTML = '';
-        state.layoutVariant = null;
-        return;
+// Option type given to a newly added asset.
+function getDefaultOptionType() {
+    return getPresentationType(state.adType) || 'cornerOverlay';
+}
+
+// Slot identifiers (AdIdentifier, Table 7). Default follows the examples of SVTA2053.
+const DEFAULT_IDENTIFIER_SCHEME = 'urn:com:example:ads:id';
+
+function generateUuid() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        return window.crypto.randomUUID();
     }
-    if (!variants.some(v => v.key === state.layoutVariant)) {
-        state.layoutVariant = variants[0].key;
-    }
-    select.innerHTML = variants.map(v =>
-        `<option value="${v.key}" ${v.key === state.layoutVariant ? 'selected' : ''}>${v.label}</option>`
-    ).join('');
-    group.hidden = false;
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+}
+
+function escapeAttr(value) {
+    return String(value === undefined || value === null ? '' : value)
+        .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
 function cloneViewport(vp) {
@@ -129,8 +157,7 @@ function cloneViewport(vp) {
 }
 
 function applyAdTypeLayout(adType) {
-    renderLayoutVariantSelect();
-    const preset = getAdTypeLayout(adType, state.layoutVariant);
+    const preset = getAdTypeLayout(adType);
 
     state.primaryContent = {
         zDepth: preset.primaryContent.zDepth,
@@ -147,6 +174,7 @@ function applyAdTypeLayout(adType) {
         renderAssetForm(asset, idx);
     });
 
+    renderSlotForm();
     renderPrimaryContentForm();
     updateJSON();
     renderPreview();
@@ -155,8 +183,8 @@ function applyAdTypeLayout(adType) {
 
 // Application state
 const state = {
-    adType: 'cornerOverlay',
-    layoutVariant: null,
+    adType: '',
+    identifiers: [],
     outputFormat: 'hls', // 'hls' (JSON) or 'dash' (XML)
     assets: [],
     primaryContent: {
@@ -234,10 +262,6 @@ document.addEventListener('DOMContentLoaded', () => {
 function initializeApp() {
     // Set up event listeners
     document.getElementById('adType').addEventListener('change', handleAdTypeChange);
-    const layoutVariantSelect = document.getElementById('layoutVariant');
-    if (layoutVariantSelect) {
-        layoutVariantSelect.addEventListener('change', handleLayoutVariantChange);
-    }
     document.getElementById('addAssetBtn').addEventListener('click', handleAddAsset);
 
     const formatRadios = document.querySelectorAll('input[name="assetListFormat"]');
@@ -287,6 +311,7 @@ function initializeApp() {
     // Apply default layout for the selected adType
     const adTypeSelect = document.getElementById('adType');
     state.adType = adTypeSelect ? adTypeSelect.value : state.adType;
+    state.identifiers = [{ scheme: DEFAULT_IDENTIFIER_SCHEME, value: generateUuid() }];
     applyAdTypeLayout(state.adType);
     
     // Wire up drag-to-resize on the preview player
@@ -297,12 +322,6 @@ function initializeApp() {
 
 function handleAdTypeChange(e) {
     state.adType = e.target.value;
-    state.layoutVariant = null;
-    applyAdTypeLayout(state.adType);
-}
-
-function handleLayoutVariantChange(e) {
-    state.layoutVariant = e.target.value;
     applyAdTypeLayout(state.adType);
 }
 
@@ -540,6 +559,62 @@ function initializePlayerResize() {
     handle.addEventListener('pointercancel', endResize);
 }
 
+function renderSlotForm() {
+    const container = document.getElementById('slotForm');
+    if (!container) return;
+    const wasOpen = !!container.querySelector('.slot-form-body:not([style*="none"])');
+    const id = state.identifiers[0] || { scheme: '', value: '' };
+    container.innerHTML = `
+        <div class="asset-form-item slot-form">
+            <h3 class="collapsible-header" onclick="toggleSlotForm()">
+                <span>Slot identifiers</span>
+                <span class="collapse-icon">${wasOpen ? '▼' : '▶'}</span>
+            </h3>
+            <div class="slot-form-body" style="display: ${wasOpen ? 'block' : 'none'};">
+                <div class="asset-form-grid">
+                    <div class="form-group">
+                        <label for="slot-identifier-scheme">scheme:</label>
+                        <input type="text" id="slot-identifier-scheme" value="${escapeAttr(id.scheme)}"
+                            onchange="updateIdentifier('scheme', this.value)">
+                    </div>
+                    <div class="form-group">
+                        <label for="slot-identifier-value">value:</label>
+                        <div class="identifier-value-row">
+                            <input type="text" id="slot-identifier-value" value="${escapeAttr(id.value)}"
+                                onchange="updateIdentifier('value', this.value)">
+                            <button type="button" class="btn-secondary" title="Generate a new UUID"
+                                onclick="regenerateIdentifier()">New UUID</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function toggleSlotForm() {
+    const body = document.querySelector('.slot-form-body');
+    const icon = document.querySelector('.slot-form .collapse-icon');
+    const open = body.style.display === 'none';
+    body.style.display = open ? 'block' : 'none';
+    icon.textContent = open ? '▼' : '▶';
+    setTimeout(adjustPreviewHeight, 0);
+}
+
+function updateIdentifier(field, value) {
+    if (!state.identifiers.length) state.identifiers.push({ scheme: '', value: '' });
+    state.identifiers[0][field] = value.trim();
+    updateJSON();
+}
+
+function regenerateIdentifier() {
+    if (!state.identifiers.length) state.identifiers.push({ scheme: DEFAULT_IDENTIFIER_SCHEME, value: '' });
+    state.identifiers[0].value = generateUuid();
+    const input = document.getElementById('slot-identifier-value');
+    if (input) input.value = state.identifiers[0].value;
+    updateJSON();
+}
+
 function renderPrimaryContentForm() {
     const container = document.getElementById('primaryContentForm');
     const pc = state.primaryContent;
@@ -649,7 +724,7 @@ function updatePrimaryContentViewportField(field, value, inputEl) {
     renderPreview();
 }
 
-function createAssetFromTemplate(template) {
+function createAssetFromTemplate(template, optionType) {
     const lastAsset = state.assets[state.assets.length - 1];
     const defaultZDepth = template.zDepth !== undefined
         ? template.zDepth
@@ -661,14 +736,16 @@ function createAssetFromTemplate(template) {
         uri: '',
         viewport: cloneViewport(template.viewport),
         zDepth: defaultZDepth,
-        volume: ASSET_DEFAULT_VOLUME
+        volume: ASSET_DEFAULT_VOLUME,
+        optionType: optionType || getDefaultOptionType()
     };
 }
 
 function handleAddAsset() {
     if (state.assets.length === 0) {
-        const defaults = getAdTypeLayout(state.adType, state.layoutVariant).newAssetDefaults || [];
-        defaults.forEach(template => {
+        const defaults = getAdTypeLayout(state.adType).newAssetDefaults || [];
+        const templates = defaults.length ? defaults : [AD_TYPE_LAYOUTS.cornerOverlay.newAssetDefaults[0]];
+        templates.forEach(template => {
             const newAsset = createAssetFromTemplate(template);
             state.assets.push(newAsset);
             renderAssetForm(newAsset, state.assets.length - 1);
@@ -708,6 +785,12 @@ function renderAssetForm(asset, index) {
                         `<option value="${type}" ${asset.type === type ? 'selected' : ''}>${type}</option>`
                     ).join('')}
                 </select>
+            </div>
+            <div class="form-group">
+                <label for="asset-optionType-${index}" title="PresentationType of the layoutOptions entry this asset belongs to">layoutOptions type: <span style="color: red;">*</span></label>
+                <input type="text" id="asset-optionType-${index}" list="presentationTypeList"
+                    value="${escapeAttr(asset.optionType)}" class="${asset.optionType ? '' : 'input-invalid'}"
+                    onchange="updateAssetOptionType(${index}, this.value, this)">
             </div>
             <div class="form-group">
                 <label for="asset-uri-${index}">URI: <span style="color: red;">*</span></label>
@@ -771,6 +854,15 @@ function updateAsset(index, property, value) {
         // Use setTimeout to allow DOM to update before adjusting height
         setTimeout(adjustPreviewHeight, 0);
     }
+}
+
+function updateAssetOptionType(index, value, inputEl) {
+    const optionType = String(value || '').trim();
+    if (inputEl) {
+        inputEl.value = optionType;
+        inputEl.classList.toggle('input-invalid', !optionType);
+    }
+    updateAsset(index, 'optionType', optionType);
 }
 
 function updateAssetVolume(index, value, inputEl) {
@@ -1049,11 +1141,18 @@ function escapeXml(value) {
         .replace(/'/g, '&apos;');
 }
 
+// DASH carries a single ConcurrentElements: its layoutMode is the PresentationType of
+// the selected adType, or, with no adType, the option type of the first asset.
+function dashLayoutMode() {
+    return getPresentationType(state.adType)
+        || ((state.assets.find(a => a.optionType) || {}).optionType || '');
+}
+
 function buildDashXml() {
     const durationSeconds = 15.015;
     const primary = state.primaryContent;
     const assets = state.assets || [];
-    const includePrimary = !isPrimaryContentAtDefaults();
+    const includePrimary = !isPrimaryContentAtDefaults() && hasSignaling();
 
     const primaryXml = includePrimary
         ? (() => {
@@ -1101,12 +1200,81 @@ function buildDashXml() {
         '     minBufferTime="PT1S"\n' +
         '     profiles="urn:svta:dash:profile:overlays:2026">\n\n' +
         `    <Period id="overlay-video" duration="PT${durationSeconds.toFixed(3)}S">\n\n` +
-        `        <svta:ConcurrentElements layoutMode="${escapeXml(state.adType || '')}">\n` +
-        `${overlayInner}\n` +
-        '        </svta:ConcurrentElements>\n' +
+        (overlayInner
+            ? `        <svta:ConcurrentElements layoutMode="${escapeXml(dashLayoutMode())}">\n` +
+              `${overlayInner}\n` +
+              '        </svta:ConcurrentElements>\n'
+            : '') +
         '    </Period>\n\n' +
         '</MPD>\n'
     );
+}
+
+// With no adType selected and no assets there is nothing concurrent to signal, so
+// the asset is emitted without X-AD-CREATIVE-SIGNALING (no payload object).
+function hasSignaling() {
+    return !!state.adType || state.assets.length > 0;
+}
+
+function buildIdentifiers() {
+    return state.identifiers
+        .filter(id => id.scheme && id.value)
+        .map(id => ({ scheme: id.scheme, value: id.value }));
+}
+
+function buildPrimaryContentLayout() {
+    if (isPrimaryContentAtDefaults()) return null;
+    const pc = { zDepth: state.primaryContent.zDepth };
+    if (state.primaryContent.volume !== undefined) {
+        pc.volume = state.primaryContent.volume;
+    }
+    pc.viewport = formatViewport(state.primaryContent.viewport);
+    return pc;
+}
+
+function buildAssetLayout(asset) {
+    const out = {
+        id: asset.id,
+        type: asset.type,
+        uri: asset.uri,
+        viewport: formatViewport(asset.viewport),
+        zDepth: asset.zDepth
+    };
+    if (asset.volume !== undefined && asset.volume !== ASSET_DEFAULT_VOLUME) {
+        out.volume = asset.volume;
+    }
+    return out;
+}
+
+// One layoutOptions entry per distinct asset option type, in order of first use.
+// Assets without an option type are left out. A selected adType with no assets yet
+// still yields its option with an empty assets array. The primary content layout is
+// shared by every option.
+function buildLayoutOptions() {
+    const groups = [];
+    const byType = {};
+    const presentationType = getPresentationType(state.adType);
+    if (presentationType) {
+        byType[presentationType] = { type: presentationType, assets: [] };
+        groups.push(byType[presentationType]);
+    }
+    state.assets.forEach(asset => {
+        if (!asset.optionType) return;
+        if (!byType[asset.optionType]) {
+            byType[asset.optionType] = { type: asset.optionType, assets: [] };
+            groups.push(byType[asset.optionType]);
+        }
+        byType[asset.optionType].assets.push(buildAssetLayout(asset));
+    });
+    const pc = buildPrimaryContentLayout();
+    return groups
+        .filter(g => g.assets.length || g.type === presentationType)
+        .map(g => {
+            const layout = {};
+            if (pc) layout.primaryContent = { ...pc };
+            layout.assets = g.assets;
+            return { type: g.type, layout };
+        });
 }
 
 function updateJSON() {
@@ -1121,51 +1289,25 @@ function updateJSON() {
         jsonPreview.className = 'language-xml';
     } else {
         // Default HLS JSON output
-        const layout = {};
-        if (!isPrimaryContentAtDefaults()) {
-            const pc = {
-                zDepth: state.primaryContent.zDepth
-            };
-            if (state.primaryContent.volume !== undefined) {
-                pc.volume = state.primaryContent.volume;
-            }
-            pc.viewport = formatViewport(state.primaryContent.viewport);
-            layout.primaryContent = pc;
-        }
-        layout.assets = state.assets.map(asset => {
-            const out = {
-                id: asset.id,
-                type: asset.type,
-                uri: asset.uri,
-                viewport: formatViewport(asset.viewport),
-                zDepth: asset.zDepth
-            };
-            if (asset.volume !== undefined && asset.volume !== ASSET_DEFAULT_VOLUME) {
-                out.volume = asset.volume;
-            }
-            return out;
-        });
-        
-        const jsonData = {
-            ASSETS: [{
-                URI: "[PATH TO ASSET]",
-                DURATION: 15.015,
-                "X-AD-CREATIVE-SIGNALING": {
-                    version: 2,
-                    type: "slot",
-                    payload: [{
-                        start: 0.0,
-                        duration: 15.015,
-                        // Layout is carried only inside presentation options (SlotOption:
-                        // type + layout); the selected option's type replaces the slot's.
-                        layoutOptions: [{
-                            type: state.adType,
-                            layout: layout
-                        }]
-                    }]
-                }
-            }]
+        const asset = {
+            URI: "[PATH TO ASSET]",
+            DURATION: 15.015
         };
+        if (hasSignaling()) {
+            asset["X-AD-CREATIVE-SIGNALING"] = {
+                version: 2,
+                type: "slot",
+                payload: [{
+                    start: 0.0,
+                    duration: 15.015,
+                    identifiers: buildIdentifiers(),
+                    // Layout is carried only inside presentation options (SlotOption:
+                    // type + layout); the selected option's type replaces the slot's.
+                    layoutOptions: buildLayoutOptions()
+                }]
+            };
+        }
+        const jsonData = { ASSETS: [asset] };
 
         outputString = JSON.stringify(jsonData, null, 4);
         jsonPreview.className = 'language-json';
@@ -1188,6 +1330,10 @@ window.updatePrimaryContent = updatePrimaryContent;
 window.updatePrimaryContentViewportField = updatePrimaryContentViewportField;
 window.updatePrimaryContentVolume = updatePrimaryContentVolume;
 window.updateAssetVolume = updateAssetVolume;
+window.updateAssetOptionType = updateAssetOptionType;
+window.updateIdentifier = updateIdentifier;
+window.regenerateIdentifier = regenerateIdentifier;
+window.toggleSlotForm = toggleSlotForm;
 window.togglePrimaryContentForm = togglePrimaryContentForm;
 window.updateAssetLabel = updateAssetLabel;
 window.togglePlayerSize = togglePlayerSize;

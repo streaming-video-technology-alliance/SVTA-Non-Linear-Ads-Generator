@@ -48,23 +48,31 @@
                     <div class="form-group form-group-inline">
                         <label for="adType">adType:</label>
                         <select id="adType" class="form-control">
-                            <option value="cornerOverlay" selected>corner overlay</option>
+                            <option value="" selected></option>
+                            <option value="cornerOverlay">cornerOverlay</option>
                             <option value="lowerThirdOverlay">lowerThirdOverlay</option>
                             <option value="squeezebackFrame">squeezebackFrame</option>
                             <option value="squeezebackDoubleBox">squeezebackDoubleBox</option>
                             <option value="squeezebackLShape">squeezebackLShape</option>
+                            <option value="squeezebackLShape-2bars">squeezebackLShape-2bars</option>
+                            <option value="squeezebackLShape-left">squeezebackLShape-left</option>
                             <option value="multiView">multiView</option>
                         </select>
-                    </div>
-                    <div class="form-group form-group-inline" id="layoutVariantGroup" hidden>
-                        <label for="layoutVariant">layout:</label>
-                        <select id="layoutVariant" class="form-control"></select>
                     </div>
                     </div>
                     <button id="addAssetBtn" class="btn-primary">ADD ASSET</button>
                 </div>
             </div>
+            <div id="slotForm" class="slot-form-container"></div>
             <div id="primaryContentForm" class="primary-content-form-container"></div>
+            <datalist id="presentationTypeList">
+                <option value="cornerOverlay"></option>
+                <option value="lowerThirdOverlay"></option>
+                <option value="squeezebackFrame"></option>
+                <option value="squeezebackDoubleBox"></option>
+                <option value="squeezebackLShape"></option>
+                <option value="multiView"></option>
+            </datalist>
             <div id="assetForms" class="asset-forms-container"></div>
         </section>
 

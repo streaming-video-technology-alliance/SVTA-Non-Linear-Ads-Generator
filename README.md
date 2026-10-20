@@ -37,17 +37,19 @@ The server runs on port 3000 by default. To use another port, set the `PORT` env
 
 ## Usage
 
-1. Select an `adType`. For `squeezebackLShape`, also choose the **layout** variant (see below).
-2. Click **ADD ASSET**. The first click adds the default assets for the selected adType. Each later click adds one corner-overlay asset.
-3. Edit the asset properties:
+1. Select an `adType`. The dropdown starts empty (no adType). With no adType and no assets, nothing concurrent is signaled: the ASSET-LIST entry has no `X-AD-CREATIVE-SIGNALING`.
+2. Click **ADD ASSET**. The first click adds the default assets for the selected adType. Each later click, and every click with no adType, adds one corner-overlay asset.
+3. Optionally expand **Slot identifiers** to set the slot's identifier `scheme` and `value`. A UUID is generated at load; **New UUID** replaces it.
+4. Edit the asset properties:
    - **ID**: Identifier of the element, unique within the layout
+   - **layoutOptions type**: The PresentationType of the `layoutOptions` entry this asset belongs to. It defaults to the PresentationType of the selected adType, or `cornerOverlay` with no adType. Assets that share a type go into the same option. Give an asset a different type to build an extra option. Assets with an empty type are left out (the field is highlighted).
    - **Type**: IANA media type (HLS, DASH, MP4, PNG, JPEG, SVG). `image/*` is rendered as an image; any other type is rendered as a media stream.
    - **URI**: Location of the asset (required)
    - **viewport**: `top right bottom left`, each an inset in % (0–100) from the same edge of the player area. `0 0 0 0` is full frame; `0 75 75 0` is the top-left quarter.
    - **zDepth**: Stacking order; higher values are drawn on top
    - **volume**: Initial volume, 0–100
-4. Optionally expand **Primary Content** to change its viewport, zDepth or volume.
-5. Copy the generated output from the Data Preview.
+5. Optionally expand **Primary Content** to change its viewport, zDepth or volume.
+6. Copy the generated output from the Data Preview.
 
 ### Default layouts
 
@@ -59,11 +61,14 @@ Viewports are written `top right bottom left`.
 | lowerThirdOverlay | not emitted (full frame, 0) | adOverlay1: `70 0 0 0`, 1 |
 | squeezebackFrame | `20 20 20 20`, 1 | adOverlay1: `0 0 0 0`, 0 |
 | squeezebackDoubleBox | `25 50 25 0`, 0 | adSideBySide: `25 0 25 50`, 1 |
-| squeezebackLShape — backplate (default) | `0 0 25 25`, 1 | lBackplate: `0 0 0 0`, 0 |
-| squeezebackLShape — two bars | `0 40 40 0`, 0 | adBarVertical: `0 0 0 60`, 1; adBarHorizontal: `60 0 0 0`, 2 |
+| squeezebackLShape | `0 0 25 25`, 1 | lBackplate: `0 0 0 0`, 0 |
+| squeezebackLShape-left | `0 25 25 0`, 1 | lBackplate: `0 0 0 0`, 0 |
+| squeezebackLShape-2bars | `0 40 40 0`, 0 | adBarVertical: `0 0 0 60`, 1; adBarHorizontal: `60 0 0 0`, 2 |
 | multiView | `0 50 50 0`, 0 | view2: `0 0 50 50`, 1; view3: `50 50 0 0`, 2; view4: `50 0 0 50`, 3 |
 
-The `squeezebackLShape` **backplate** is one full-frame underlay whose artwork forms the L, with the primary content scaled to the upper right on top of it. This is how the IAB assumes squeezeback creatives are delivered. It needs two concurrent video decoders. The **two bars** form uses separate vertical and horizontal assets, so it needs three decoders when both bars are video.
+The three `squeezebackLShape` entries are forms of the same PresentationType, so all three write `"type": "squeezebackLShape"` in `layoutOptions` and `layoutMode` in DASH.
+- **`squeezebackLShape`** (the default) and **`-left`** use a backplate: one full-frame underlay whose artwork forms the L, with the primary content scaled to the upper right or upper left (the reversed L) on top of it. This is how the IAB assumes squeezeback creatives are delivered, and it needs two concurrent video decoders.
+- **`-2bars`** uses separate vertical and horizontal assets, so it needs three decoders when both bars are video.
 
 ### Volume
 
@@ -76,7 +81,7 @@ The `squeezebackLShape` **backplate** is one full-frame underlay whose artwork f
 
 ### HLS (ASSET-LIST JSON)
 
-The layout is carried in the slot's `layoutOptions` array. Each entry is a presentation option: a `type` (the adType) and a `layout` (`primaryContent` plus `assets`). The generator emits one option, for the selected adType. A player presents the first option the device can render, and the type of that option becomes the type of the slot.
+The slot carries `start`, `duration`, `identifiers` and `layoutOptions`. Each `layoutOptions` entry is a presentation option: a `type` (PresentationType) and a `layout` (`primaryContent` plus `assets`). Options are listed in this order: the selected adType first, then every other asset type in the order it first appears. A player presents the first option the device can render, and the type of that option becomes the type of the slot. The primary content layout is shared by all options.
 
 ```json
 {
@@ -89,6 +94,10 @@ The layout is carried in the slot's `layoutOptions` array. Each entry is a prese
             "payload": [{
                 "start": 0,
                 "duration": 15.015,
+                "identifiers": [{
+                    "scheme": "urn:com:example:ads:id",
+                    "value": "14faceb9-0f9a-459f-9691-e631af960826"
+                }],
                 "layoutOptions": [{
                     "type": "squeezebackLShape",
                     "layout": {
@@ -110,7 +119,7 @@ The layout is carried in the slot's `layoutOptions` array. Each entry is a prese
 
 ### DASH (MPD XML)
 
-The output is an MPD with `type="non-linear"`. It contains a single `svta:ConcurrentElements` (`layoutMode` = adType) with `svta:PrimaryContent` and `svta:Asset` elements. These follow the same viewport, zDepth and volume rules as the HLS output.
+The output is an MPD with `type="non-linear"`. It contains a single `svta:ConcurrentElements` whose `layoutMode` is the PresentationType of the adType, or with no adType the type of the first asset. Inside are `svta:PrimaryContent` and `svta:Asset` elements, which follow the same viewport, zDepth and volume rules as the HLS output. With no adType and no assets, the Period has no `ConcurrentElements`. The DASH form carries neither identifiers nor multiple options.
 
 ## Project Structure
 
