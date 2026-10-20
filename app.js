@@ -9,10 +9,14 @@
 // playing, and additional assets default to 0 (muted), per AssetLayout (Table 11).
 // presentationType is the PresentationType written to layoutOptions[].type; it
 // defaults to the key. Several dropdown entries can share one PresentationType
-// (the squeezebackLShape forms). The empty key "" is "no adType": no preset, and a
-// layout option without an adType is not emitted.
+// (the squeezebackLShape forms). customLayout is the default: it has no preset
+// (full-frame primary content, corner-overlay assets) and is emitted with
+// "type": "customLayout". It is not a PresentationType of SVTA2053 v4 Table 2.
+// A layout option without an adType is not emitted.
+const DEFAULT_AD_TYPE = 'customLayout';
+
 const AD_TYPE_LAYOUTS = {
-    '': {
+    customLayout: {
         primaryContent: {
             zDepth: 0,
             viewport: { top: 0, right: 0, bottom: 0, left: 0 }
@@ -109,7 +113,7 @@ const AD_TYPE_LAYOUTS = {
 function getAdTypeLayout(adType) {
     return Object.prototype.hasOwnProperty.call(AD_TYPE_LAYOUTS, adType)
         ? AD_TYPE_LAYOUTS[adType]
-        : AD_TYPE_LAYOUTS[''];
+        : AD_TYPE_LAYOUTS[DEFAULT_AD_TYPE];
 }
 
 // PresentationType for a dropdown value; '' for "no adType".
@@ -142,7 +146,7 @@ function applyPresetToOption(option, adType) {
     return option;
 }
 
-function createLayoutOption(adType = '') {
+function createLayoutOption(adType = DEFAULT_AD_TYPE) {
     return applyPresetToOption({}, adType);
 }
 
@@ -223,7 +227,7 @@ function selectLayoutOption(index) {
 }
 
 function handleAddLayout() {
-    state.layoutOptions.push(createLayoutOption(''));
+    state.layoutOptions.push(createLayoutOption(DEFAULT_AD_TYPE));
     selectLayoutOption(state.layoutOptions.length - 1);
 }
 
@@ -390,7 +394,7 @@ function initializeApp() {
     // Apply default layout for the selected adType
     // Start with one layout option, using the adType selected in the dropdown
     const adTypeSelect = document.getElementById('adType');
-    state.layoutOptions = [createLayoutOption(adTypeSelect ? adTypeSelect.value : '')];
+    state.layoutOptions = [createLayoutOption(adTypeSelect && adTypeSelect.value ? adTypeSelect.value : DEFAULT_AD_TYPE)];
     state.activeOption = 0;
     state.previewOption = 0;
     renderLayoutOptionsUI();

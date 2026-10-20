@@ -40,8 +40,8 @@ The server runs on port 3000 by default. To use another port, set the `PORT` env
 
 The Asset Form starts with one layout option (tab **1**). Each tab is one entry of `layoutOptions`, and the tabs are listed in order of preference.
 
-1. Select an `adType` for the tab. The dropdown starts empty (no adType). A tab without an adType is shown in italics and is not emitted. When no tab has an adType, nothing concurrent is signaled: the ASSET-LIST entry has no `X-AD-CREATIVE-SIGNALING`. Changing the adType replaces the tab's primary content and assets with that adType's defaults.
-2. Click **ADD ASSET**. The first click adds the default assets for the tab's adType. Each later click, and every click with no adType, adds one corner-overlay asset.
+1. Select an `adType` for the tab. Each tab starts as `customLayout`: a layout with no preset (full-frame primary content), emitted with `"type": "customLayout"`. Note that `customLayout` is not a PresentationType of SVTA2053 v4 Table 2. Changing the adType replaces the tab's primary content and assets with that adType's defaults.
+2. Click **ADD ASSET**. The first click adds the default assets for the tab's adType. Each later click, and every click on a `customLayout` tab, adds one corner-overlay asset.
 3. Edit the asset properties:
    - **ID**: Identifier of the element, unique within the layout
    - **Type**: IANA media type (HLS, DASH, MP4, PNG, JPEG, SVG). `image/*` is rendered as an image; any other type is rendered as a media stream.
@@ -60,6 +60,7 @@ Viewports are written `top right bottom left`.
 
 | adType | Primary content (viewport, zDepth) | Additional assets (id: viewport, zDepth) |
 |---|---|---|
+| customLayout (default) | not emitted (full frame, 0) | none; ADD ASSET adds adOverlayN: `0 75 75 0` |
 | cornerOverlay | not emitted (full frame, 0) | adOverlay1: `0 75 75 0`, 1 |
 | lowerThirdOverlay | not emitted (full frame, 0) | adOverlay1: `70 0 0 0`, 1 |
 | squeezebackFrame | `20 20 20 20`, 1 | adOverlay1: `0 0 0 0`, 0 |
@@ -118,7 +119,7 @@ The slot carries `start`, `duration` and `layoutOptions`. Slot identifiers are n
 
 ### DASH (MPD XML)
 
-The output is an MPD with `type="non-linear"`. The DASH form carries a single option: the one selected in the Preview Player. It is written as one `svta:ConcurrentElements` whose `layoutMode` is the option's PresentationType. Inside are `svta:PrimaryContent` and `svta:Asset` elements, which follow the same viewport, zDepth and volume rules as the HLS output. When the selected option has no adType, the Period has no `ConcurrentElements`.
+The output is an MPD with `type="non-linear"`. The DASH form carries a single option: the one selected in the Preview Player. It is written as one `svta:ConcurrentElements` whose `layoutMode` is the option's PresentationType. Inside are `svta:PrimaryContent` and `svta:Asset` elements, which follow the same viewport, zDepth and volume rules as the HLS output.
 
 ## Project Structure
 
