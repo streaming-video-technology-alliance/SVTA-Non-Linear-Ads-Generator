@@ -134,19 +134,6 @@ function getDefaultOptionType() {
     return getPresentationType(state.adType) || 'cornerOverlay';
 }
 
-// Slot identifiers (AdIdentifier, Table 7). Default follows the examples of SVTA2053.
-const DEFAULT_IDENTIFIER_SCHEME = 'urn:com:example:ads:id';
-
-function generateUuid() {
-    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
-        return window.crypto.randomUUID();
-    }
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-        const r = Math.random() * 16 | 0;
-        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-    });
-}
-
 function escapeAttr(value) {
     return String(value === undefined || value === null ? '' : value)
         .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -174,7 +161,6 @@ function applyAdTypeLayout(adType) {
         renderAssetForm(asset, idx);
     });
 
-    renderSlotForm();
     renderPrimaryContentForm();
     updateJSON();
     renderPreview();
@@ -184,7 +170,6 @@ function applyAdTypeLayout(adType) {
 // Application state
 const state = {
     adType: '',
-    identifiers: [],
     outputFormat: 'hls', // 'hls' (JSON) or 'dash' (XML)
     assets: [],
     primaryContent: {
@@ -311,7 +296,6 @@ function initializeApp() {
     // Apply default layout for the selected adType
     const adTypeSelect = document.getElementById('adType');
     state.adType = adTypeSelect ? adTypeSelect.value : state.adType;
-    state.identifiers = [{ scheme: DEFAULT_IDENTIFIER_SCHEME, value: generateUuid() }];
     applyAdTypeLayout(state.adType);
     
     // Wire up drag-to-resize on the preview player
@@ -557,62 +541,6 @@ function initializePlayerResize() {
     
     handle.addEventListener('pointerup', endResize);
     handle.addEventListener('pointercancel', endResize);
-}
-
-function renderSlotForm() {
-    const container = document.getElementById('slotForm');
-    if (!container) return;
-    const wasOpen = !!container.querySelector('.slot-form-body:not([style*="none"])');
-    const id = state.identifiers[0] || { scheme: '', value: '' };
-    container.innerHTML = `
-        <div class="asset-form-item slot-form">
-            <h3 class="collapsible-header" onclick="toggleSlotForm()">
-                <span>Slot identifiers</span>
-                <span class="collapse-icon">${wasOpen ? '▼' : '▶'}</span>
-            </h3>
-            <div class="slot-form-body" style="display: ${wasOpen ? 'block' : 'none'};">
-                <div class="asset-form-grid">
-                    <div class="form-group">
-                        <label for="slot-identifier-scheme">scheme:</label>
-                        <input type="text" id="slot-identifier-scheme" value="${escapeAttr(id.scheme)}"
-                            onchange="updateIdentifier('scheme', this.value)">
-                    </div>
-                    <div class="form-group">
-                        <label for="slot-identifier-value">value:</label>
-                        <div class="identifier-value-row">
-                            <input type="text" id="slot-identifier-value" value="${escapeAttr(id.value)}"
-                                onchange="updateIdentifier('value', this.value)">
-                            <button type="button" class="btn-secondary" title="Generate a new UUID"
-                                onclick="regenerateIdentifier()">New UUID</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-function toggleSlotForm() {
-    const body = document.querySelector('.slot-form-body');
-    const icon = document.querySelector('.slot-form .collapse-icon');
-    const open = body.style.display === 'none';
-    body.style.display = open ? 'block' : 'none';
-    icon.textContent = open ? '▼' : '▶';
-    setTimeout(adjustPreviewHeight, 0);
-}
-
-function updateIdentifier(field, value) {
-    if (!state.identifiers.length) state.identifiers.push({ scheme: '', value: '' });
-    state.identifiers[0][field] = value.trim();
-    updateJSON();
-}
-
-function regenerateIdentifier() {
-    if (!state.identifiers.length) state.identifiers.push({ scheme: DEFAULT_IDENTIFIER_SCHEME, value: '' });
-    state.identifiers[0].value = generateUuid();
-    const input = document.getElementById('slot-identifier-value');
-    if (input) input.value = state.identifiers[0].value;
-    updateJSON();
 }
 
 function renderPrimaryContentForm() {
@@ -1216,12 +1144,6 @@ function hasSignaling() {
     return !!state.adType || state.assets.length > 0;
 }
 
-function buildIdentifiers() {
-    return state.identifiers
-        .filter(id => id.scheme && id.value)
-        .map(id => ({ scheme: id.scheme, value: id.value }));
-}
-
 function buildPrimaryContentLayout() {
     if (isPrimaryContentAtDefaults()) return null;
     const pc = { zDepth: state.primaryContent.zDepth };
@@ -1300,7 +1222,6 @@ function updateJSON() {
                 payload: [{
                     start: 0.0,
                     duration: 15.015,
-                    identifiers: buildIdentifiers(),
                     // Layout is carried only inside presentation options (SlotOption:
                     // type + layout); the selected option's type replaces the slot's.
                     layoutOptions: buildLayoutOptions()
@@ -1331,9 +1252,6 @@ window.updatePrimaryContentViewportField = updatePrimaryContentViewportField;
 window.updatePrimaryContentVolume = updatePrimaryContentVolume;
 window.updateAssetVolume = updateAssetVolume;
 window.updateAssetOptionType = updateAssetOptionType;
-window.updateIdentifier = updateIdentifier;
-window.regenerateIdentifier = regenerateIdentifier;
-window.toggleSlotForm = toggleSlotForm;
 window.togglePrimaryContentForm = togglePrimaryContentForm;
 window.updateAssetLabel = updateAssetLabel;
 window.togglePlayerSize = togglePlayerSize;
