@@ -407,9 +407,101 @@ body.player-resizing * {
     gap: 16px;
 }
 
-.input-invalid {
-    border-color: #d33 !important;
-    background: #fff5f5;
+/* Asset Form: title row with ADD LAYOUT, and one tab per layout option */
+.asset-form-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 10px;
+}
+
+.asset-form-title-row h2 {
+    margin: 0;
+}
+
+.layout-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    border-bottom: 1px solid #ddd;
+}
+
+.layout-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    margin-bottom: -1px;
+    border: 1px solid #ddd;
+    border-bottom-color: transparent;
+    border-radius: 4px 4px 0 0;
+    background: #f0f0f0;
+    color: #555;
+    font-size: 13px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.layout-tab:hover {
+    background: #e8e8e8;
+}
+
+.layout-tab.active {
+    background: #fafafa;
+    border-bottom-color: #fafafa;
+    color: #1976d2;
+    font-weight: 600;
+}
+
+.layout-tab.incomplete .layout-tab-label {
+    font-style: italic;
+}
+
+.layout-tab:focus-visible {
+    outline: 2px solid #1976d2;
+    outline-offset: -2px;
+}
+
+.layout-tab-delete {
+    border: none;
+    background: transparent;
+    color: #999;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0 2px;
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+.layout-tab-delete:hover,
+.layout-tab-delete:focus-visible {
+    color: #d32f2f;
+    background: rgba(211, 47, 47, 0.08);
+}
+
+.layout-option-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    background: #fafafa;
+    margin-bottom: 10px;
+}
+
+/* Preview Player: layout option selector */
+.preview-layout-select {
+    height: 28px;
+    padding: 2px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 12px;
+    background: #fff;
+    max-width: 220px;
 }
 
 .asset-form-item {

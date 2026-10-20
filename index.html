@@ -14,6 +14,8 @@
             <div class="preview-header">
                 <h2>Preview Player</h2>
                 <div class="player-dimensions-container">
+                    <select id="previewLayoutSelect" class="preview-layout-select"
+                        title="Layout option rendered in the preview" aria-label="Layout option rendered in the preview"></select>
                     <div class="player-dimensions-inputs">
                         <input type="number" id="playerWidth" class="player-dimension-input" min="1" placeholder="Width">
                         <span class="dimension-separator">×</span>
@@ -41,7 +43,12 @@
 
         <!-- Asset Form Section -->
         <section class="asset-form-section">
-            <h2>Asset Form</h2>
+            <div class="asset-form-title-row">
+                <h2>Asset Form</h2>
+                <button id="addLayoutBtn" class="btn-primary">ADD LAYOUT</button>
+            </div>
+            <div id="layoutTabs" class="layout-tabs" role="tablist" aria-label="Layout options"></div>
+            <div class="layout-option-panel" role="tabpanel">
             <div class="form-controls">
                 <div class="asset-form-header-row">
                     <div class="asset-form-header-controls">
@@ -64,15 +71,8 @@
                 </div>
             </div>
             <div id="primaryContentForm" class="primary-content-form-container"></div>
-            <datalist id="presentationTypeList">
-                <option value="cornerOverlay"></option>
-                <option value="lowerThirdOverlay"></option>
-                <option value="squeezebackFrame"></option>
-                <option value="squeezebackDoubleBox"></option>
-                <option value="squeezebackLShape"></option>
-                <option value="multiView"></option>
-            </datalist>
             <div id="assetForms" class="asset-forms-container"></div>
+            </div>
         </section>
 
         <!-- Data Preview Section -->

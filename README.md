@@ -4,7 +4,8 @@ A JavaScript web application (the SVTA Non-Linear Ads Generator, or Layout Contr
 
 ## Features
 
-- **Preview Player**: Renders the layout over a 16:9 player area. Size it by dragging, by typing width × height, or with the 1920×1080 preset, and lock it at that size.
+- **Preview Player**: Renders one layout option over a 16:9 player area. Pick the option from the dropdown next to the size inputs. Size the player by dragging, by typing width × height, or with the 1920×1080 preset, and lock it at that size.
+- **Layout options**: Build several presentation options for a slot (`layoutOptions`), one tab each, every tab with its own adType, primary content and assets.
 - **Asset Form**: Sets the primary content layout and adds additional assets, each with ID, media type, URI, viewport, zDepth and volume.
 - **Default layouts per adType**: Selecting an adType loads its default layout (SVTA2053 v4, 5.3.2, Table 20).
 - **Data Preview**: Shows the output live, as an HLS ASSET-LIST (JSON) or as a DASH MPD (XML).
@@ -37,18 +38,21 @@ The server runs on port 3000 by default. To use another port, set the `PORT` env
 
 ## Usage
 
-1. Select an `adType`. The dropdown starts empty (no adType). With no adType and no assets, nothing concurrent is signaled: the ASSET-LIST entry has no `X-AD-CREATIVE-SIGNALING`.
-2. Click **ADD ASSET**. The first click adds the default assets for the selected adType. Each later click, and every click with no adType, adds one corner-overlay asset.
+The Asset Form starts with one layout option (tab **1**). Each tab is one entry of `layoutOptions`, and the tabs are listed in order of preference.
+
+1. Select an `adType` for the tab. The dropdown starts empty (no adType). A tab without an adType is shown in italics and is not emitted. When no tab has an adType, nothing concurrent is signaled: the ASSET-LIST entry has no `X-AD-CREATIVE-SIGNALING`. Changing the adType replaces the tab's primary content and assets with that adType's defaults.
+2. Click **ADD ASSET**. The first click adds the default assets for the tab's adType. Each later click, and every click with no adType, adds one corner-overlay asset.
 3. Edit the asset properties:
    - **ID**: Identifier of the element, unique within the layout
-   - **layoutOptions type**: The PresentationType of the `layoutOptions` entry this asset belongs to. It defaults to the PresentationType of the selected adType, or `cornerOverlay` with no adType. Assets that share a type go into the same option. Give an asset a different type to build an extra option. Assets with an empty type are left out (the field is highlighted).
    - **Type**: IANA media type (HLS, DASH, MP4, PNG, JPEG, SVG). `image/*` is rendered as an image; any other type is rendered as a media stream.
    - **URI**: Location of the asset (required)
    - **viewport**: `top right bottom left`, each an inset in % (0–100) from the same edge of the player area. `0 0 0 0` is full frame; `0 75 75 0` is the top-left quarter.
    - **zDepth**: Stacking order; higher values are drawn on top
    - **volume**: Initial volume, 0–100
-4. Optionally expand **Primary Content** to change its viewport, zDepth or volume.
-5. Copy the generated output from the Data Preview.
+4. Optionally expand **Primary Content** to change the tab's primary content viewport, zDepth or volume.
+5. Click **ADD LAYOUT** to add another option (a fallback presentation), and set it up the same way. Delete an option with the **×** on its tab; the last remaining tab cannot be deleted.
+6. Choose the option to render with the dropdown in the Preview Player header. Clicking a tab also renders that tab.
+7. Copy the generated output from the Data Preview.
 
 ### Default layouts
 
@@ -80,7 +84,7 @@ The three `squeezebackLShape` entries are forms of the same PresentationType, so
 
 ### HLS (ASSET-LIST JSON)
 
-The slot carries `start`, `duration` and `layoutOptions`. Slot identifiers are not generated, because they are not part of the layout. Each `layoutOptions` entry is a presentation option: a `type` (PresentationType) and a `layout` (`primaryContent` plus `assets`). Options are listed in this order: the selected adType first, then every other asset type in the order it first appears. A player presents the first option the device can render, and the type of that option becomes the type of the slot. The primary content layout is shared by all options.
+The slot carries `start`, `duration` and `layoutOptions`. Slot identifiers are not generated, because they are not part of the layout. Each `layoutOptions` entry is a presentation option: a `type` (PresentationType) and a `layout` (`primaryContent` plus `assets`). There is one option per tab that has an adType, in tab order. A player presents the first option the device can render, and the type of that option becomes the type of the slot. Each option carries its own `primaryContent`, which is left out when it is full frame at zDepth 0 with no volume set.
 
 ```json
 {
@@ -114,7 +118,7 @@ The slot carries `start`, `duration` and `layoutOptions`. Slot identifiers are n
 
 ### DASH (MPD XML)
 
-The output is an MPD with `type="non-linear"`. It contains a single `svta:ConcurrentElements` whose `layoutMode` is the PresentationType of the adType, or with no adType the type of the first asset. Inside are `svta:PrimaryContent` and `svta:Asset` elements, which follow the same viewport, zDepth and volume rules as the HLS output. With no adType and no assets, the Period has no `ConcurrentElements`. The DASH form carries a single option.
+The output is an MPD with `type="non-linear"`. The DASH form carries a single option: the one selected in the Preview Player. It is written as one `svta:ConcurrentElements` whose `layoutMode` is the option's PresentationType. Inside are `svta:PrimaryContent` and `svta:Asset` elements, which follow the same viewport, zDepth and volume rules as the HLS output. When the selected option has no adType, the Period has no `ConcurrentElements`.
 
 ## Project Structure
 

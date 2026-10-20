@@ -9,8 +9,8 @@
 // playing, and additional assets default to 0 (muted), per AssetLayout (Table 11).
 // presentationType is the PresentationType written to layoutOptions[].type; it
 // defaults to the key. Several dropdown entries can share one PresentationType
-// (the squeezebackLShape forms). The empty key "" is "no adType": no preset, and no
-// signaling until assets are added.
+// (the squeezebackLShape forms). The empty key "" is "no adType": no preset, and a
+// layout option without an adType is not emitted.
 const AD_TYPE_LAYOUTS = {
     '': {
         primaryContent: {
@@ -106,16 +106,6 @@ const AD_TYPE_LAYOUTS = {
     }
 };
 
-// PresentationType values (Table 2), offered as suggestions for an asset's option type.
-const PRESENTATION_TYPES = [
-    'cornerOverlay',
-    'lowerThirdOverlay',
-    'squeezebackFrame',
-    'squeezebackDoubleBox',
-    'squeezebackLShape',
-    'multiView'
-];
-
 function getAdTypeLayout(adType) {
     return Object.prototype.hasOwnProperty.call(AD_TYPE_LAYOUTS, adType)
         ? AD_TYPE_LAYOUTS[adType]
@@ -129,11 +119,6 @@ function getPresentationType(adType) {
     return (preset && preset.presentationType) || adType;
 }
 
-// Option type given to a newly added asset.
-function getDefaultOptionType() {
-    return getPresentationType(state.adType) || 'cornerOverlay';
-}
-
 function escapeAttr(value) {
     return String(value === undefined || value === null ? '' : value)
         .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -143,23 +128,54 @@ function cloneViewport(vp) {
     return { top: vp.top, right: vp.right, bottom: vp.bottom, left: vp.left };
 }
 
-function applyAdTypeLayout(adType) {
+function applyPresetToOption(option, adType) {
     const preset = getAdTypeLayout(adType);
-
-    state.primaryContent = {
+    option.adType = adType;
+    option.primaryContent = {
         zDepth: preset.primaryContent.zDepth,
         viewport: cloneViewport(preset.primaryContent.viewport)
     };
     if (preset.primaryContent.volume !== undefined) {
-        state.primaryContent.volume = preset.primaryContent.volume;
+        option.primaryContent.volume = preset.primaryContent.volume;
     }
-    state.assets = [];
+    option.assets = [];
+    return option;
+}
+
+function createLayoutOption(adType = '') {
+    return applyPresetToOption({}, adType);
+}
+
+// Applies the adType preset to the layout option of the active tab.
+function applyAdTypeLayout(adType) {
+    applyPresetToOption(getActiveOption(), adType);
+    renderLayoutOptionsUI();
+}
+
+function getActiveOption() {
+    return state.layoutOptions[state.activeOption];
+}
+
+function getPreviewOption() {
+    return state.layoutOptions[state.previewOption] || getActiveOption();
+}
+
+function layoutOptionLabel(option, index) {
+    return `${index + 1} · ${option.adType || 'no adType'}`;
+}
+
+// Re-renders everything that depends on the layout options: tabs, the preview
+// selector, the forms of the active tab, the data preview and the player.
+function renderLayoutOptionsUI() {
+    const adTypeSelect = document.getElementById('adType');
+    if (adTypeSelect) adTypeSelect.value = state.adType;
+
+    renderLayoutTabs();
+    renderPreviewLayoutSelect();
 
     const container = document.getElementById('assetForms');
     container.innerHTML = '';
-    state.assets.forEach((asset, idx) => {
-        renderAssetForm(asset, idx);
-    });
+    state.assets.forEach((asset, idx) => renderAssetForm(asset, idx));
 
     renderPrimaryContentForm();
     updateJSON();
@@ -167,19 +183,95 @@ function applyAdTypeLayout(adType) {
     setTimeout(adjustPreviewHeight, 0);
 }
 
+function renderLayoutTabs() {
+    const tabs = document.getElementById('layoutTabs');
+    if (!tabs) return;
+    const canDelete = state.layoutOptions.length > 1;
+    tabs.innerHTML = state.layoutOptions.map((option, index) => {
+        const active = index === state.activeOption;
+        const incomplete = !option.adType;
+        const label = escapeAttr(layoutOptionLabel(option, index));
+        return `
+            <div class="layout-tab${active ? ' active' : ''}${incomplete ? ' incomplete' : ''}"
+                role="tab" aria-selected="${active}" tabindex="0"
+                title="${incomplete ? 'No adType: this layout option is not emitted' : label}"
+                onclick="selectLayoutOption(${index})"
+                onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectLayoutOption(${index}); }">
+                <span class="layout-tab-label">${label}</span>
+                ${canDelete ? `<button type="button" class="layout-tab-delete" title="Delete layout option ${index + 1}"
+                    aria-label="Delete layout option ${index + 1}"
+                    onclick="event.stopPropagation(); deleteLayoutOption(${index})">×</button>` : ''}
+            </div>`;
+    }).join('');
+}
+
+function renderPreviewLayoutSelect() {
+    const select = document.getElementById('previewLayoutSelect');
+    if (!select) return;
+    select.innerHTML = state.layoutOptions.map((option, index) =>
+        `<option value="${index}" ${index === state.previewOption ? 'selected' : ''}>${escapeAttr(layoutOptionLabel(option, index))}</option>`
+    ).join('');
+}
+
+// Selecting a tab edits that option and also renders it in the preview; the preview
+// selector can then show any other option without changing the tab being edited.
+function selectLayoutOption(index) {
+    if (index < 0 || index >= state.layoutOptions.length) return;
+    state.activeOption = index;
+    state.previewOption = index;
+    renderLayoutOptionsUI();
+}
+
+function handleAddLayout() {
+    state.layoutOptions.push(createLayoutOption(''));
+    selectLayoutOption(state.layoutOptions.length - 1);
+}
+
+function deleteLayoutOption(index) {
+    if (state.layoutOptions.length <= 1) return;
+    state.layoutOptions.splice(index, 1);
+    const fix = i => (i > index ? i - 1 : i === index ? Math.min(index, state.layoutOptions.length - 1) : i);
+    state.activeOption = fix(state.activeOption);
+    state.previewOption = fix(state.previewOption);
+    renderLayoutOptionsUI();
+}
+
+function handlePreviewLayoutChange(e) {
+    const index = parseInt(e.target.value, 10);
+    if (isNaN(index)) return;
+    state.previewOption = index;
+    updateJSON();
+    renderPreview();
+}
+
 // Application state
 const state = {
-    adType: '',
     outputFormat: 'hls', // 'hls' (JSON) or 'dash' (XML)
-    assets: [],
-    primaryContent: {
-        zDepth: 0,
-        viewport: { top: 0, right: 0, bottom: 0, left: 0 }
-    },
+    // Ordered presentation options of the slot (SlotOption, 4.4.9). Each holds the
+    // adType dropdown value, the primary content layout and the additional assets.
+    layoutOptions: [],
+    activeOption: 0,   // tab being edited in the Asset Form
+    previewOption: 0,  // option rendered in the Preview Player (and DASH output)
     playerSizeLocked: false,
     lockedPlayerWidth: 0,
     lockedPlayerHeight: 0
 };
+
+// The form code edits the option of the active tab through these accessors.
+Object.defineProperties(state, {
+    adType: {
+        get() { return getActiveOption().adType; },
+        set(v) { getActiveOption().adType = v; }
+    },
+    primaryContent: {
+        get() { return getActiveOption().primaryContent; },
+        set(v) { getActiveOption().primaryContent = v; }
+    },
+    assets: {
+        get() { return getActiveOption().assets; },
+        set(v) { getActiveOption().assets = v; }
+    }
+});
 
 // MIME types for dropdown
 const mimeTypes = [
@@ -227,8 +319,8 @@ const PRIMARY_CONTENT_DEFAULTS = {
     viewport: { top: 0, right: 0, bottom: 0, left: 0 }
 };
 
-function isPrimaryContentAtDefaults() {
-    const pc = state.primaryContent || {};
+function isPrimaryContentAtDefaults(primaryContent) {
+    const pc = (primaryContent === undefined ? state.primaryContent : primaryContent) || {};
     const vp = pc.viewport || {};
     const dvp = PRIMARY_CONTENT_DEFAULTS.viewport;
     return pc.zDepth === PRIMARY_CONTENT_DEFAULTS.zDepth
@@ -248,6 +340,8 @@ function initializeApp() {
     // Set up event listeners
     document.getElementById('adType').addEventListener('change', handleAdTypeChange);
     document.getElementById('addAssetBtn').addEventListener('click', handleAddAsset);
+    document.getElementById('addLayoutBtn').addEventListener('click', handleAddLayout);
+    document.getElementById('previewLayoutSelect').addEventListener('change', handlePreviewLayoutChange);
 
     const formatRadios = document.querySelectorAll('input[name="assetListFormat"]');
     formatRadios.forEach(radio => {
@@ -294,9 +388,12 @@ function initializeApp() {
     }
     
     // Apply default layout for the selected adType
+    // Start with one layout option, using the adType selected in the dropdown
     const adTypeSelect = document.getElementById('adType');
-    state.adType = adTypeSelect ? adTypeSelect.value : state.adType;
-    applyAdTypeLayout(state.adType);
+    state.layoutOptions = [createLayoutOption(adTypeSelect ? adTypeSelect.value : '')];
+    state.activeOption = 0;
+    state.previewOption = 0;
+    renderLayoutOptionsUI();
     
     // Wire up drag-to-resize on the preview player
     initializePlayerResize();
@@ -652,7 +749,7 @@ function updatePrimaryContentViewportField(field, value, inputEl) {
     renderPreview();
 }
 
-function createAssetFromTemplate(template, optionType) {
+function createAssetFromTemplate(template) {
     const lastAsset = state.assets[state.assets.length - 1];
     const defaultZDepth = template.zDepth !== undefined
         ? template.zDepth
@@ -664,8 +761,7 @@ function createAssetFromTemplate(template, optionType) {
         uri: '',
         viewport: cloneViewport(template.viewport),
         zDepth: defaultZDepth,
-        volume: ASSET_DEFAULT_VOLUME,
-        optionType: optionType || getDefaultOptionType()
+        volume: ASSET_DEFAULT_VOLUME
     };
 }
 
@@ -713,12 +809,6 @@ function renderAssetForm(asset, index) {
                         `<option value="${type}" ${asset.type === type ? 'selected' : ''}>${type}</option>`
                     ).join('')}
                 </select>
-            </div>
-            <div class="form-group">
-                <label for="asset-optionType-${index}" title="PresentationType of the layoutOptions entry this asset belongs to">layoutOptions type: <span style="color: red;">*</span></label>
-                <input type="text" id="asset-optionType-${index}" list="presentationTypeList"
-                    value="${escapeAttr(asset.optionType)}" class="${asset.optionType ? '' : 'input-invalid'}"
-                    onchange="updateAssetOptionType(${index}, this.value, this)">
             </div>
             <div class="form-group">
                 <label for="asset-uri-${index}">URI: <span style="color: red;">*</span></label>
@@ -782,15 +872,6 @@ function updateAsset(index, property, value) {
         // Use setTimeout to allow DOM to update before adjusting height
         setTimeout(adjustPreviewHeight, 0);
     }
-}
-
-function updateAssetOptionType(index, value, inputEl) {
-    const optionType = String(value || '').trim();
-    if (inputEl) {
-        inputEl.value = optionType;
-        inputEl.classList.toggle('input-invalid', !optionType);
-    }
-    updateAsset(index, 'optionType', optionType);
 }
 
 function updateAssetVolume(index, value, inputEl) {
@@ -875,6 +956,7 @@ function renderPreview() {
     const primaryContent = document.getElementById('primaryContent');
     const overlayContainer = document.getElementById('overlayContainer');
     const svg = document.getElementById('annotationSvg');
+    const option = getPreviewOption();
     
     // Clear overlays and annotations
     overlayContainer.innerHTML = '';
@@ -901,18 +983,18 @@ function renderPreview() {
     svg.setAttribute('height', playerHeight);
     
     // Apply primaryContent properties
-    const primaryPos = calculatePosition(state.primaryContent, playerWidth, playerHeight);
+    const primaryPos = calculatePosition(option.primaryContent, playerWidth, playerHeight);
     primaryContent.style.left = `${primaryPos.left}px`;
     primaryContent.style.top = `${primaryPos.top}px`;
     primaryContent.style.width = `${primaryPos.width}px`;
     primaryContent.style.height = `${primaryPos.height}px`;
-    primaryContent.style.zIndex = state.primaryContent.zDepth !== undefined
-        ? state.primaryContent.zDepth
+    primaryContent.style.zIndex = option.primaryContent.zDepth !== undefined
+        ? option.primaryContent.zDepth
         : 0;
     
     // Sort assets by zDepth (ascending) so later-painted DOM nodes are on top,
     // which matches their zDepth given z-index ties (same zDepth) resolve by DOM order.
-    const sortedAssets = [...state.assets].sort((a, b) => {
+    const sortedAssets = [...option.assets].sort((a, b) => {
         const aDepth = a.zDepth !== undefined ? a.zDepth : 0;
         const bDepth = b.zDepth !== undefined ? b.zDepth : 0;
         return aDepth - bDepth;
@@ -947,8 +1029,8 @@ function renderPreview() {
     });
     
     // Draw annotations for primaryContent if it has a viewport inset
-    if (viewportHasInset(state.primaryContent.viewport)) {
-        drawAnnotations(svg, state.primaryContent, primaryPos, playerWidth, playerHeight);
+    if (viewportHasInset(option.primaryContent.viewport)) {
+        drawAnnotations(svg, option.primaryContent, primaryPos, playerWidth, playerHeight);
     }
 }
 
@@ -1069,18 +1151,15 @@ function escapeXml(value) {
         .replace(/'/g, '&apos;');
 }
 
-// DASH carries a single ConcurrentElements: its layoutMode is the PresentationType of
-// the selected adType, or, with no adType, the option type of the first asset.
-function dashLayoutMode() {
-    return getPresentationType(state.adType)
-        || ((state.assets.find(a => a.optionType) || {}).optionType || '');
-}
-
+// DASH carries a single ConcurrentElements, so it shows the option selected in the
+// Preview Player. An option without an adType has nothing to signal.
 function buildDashXml() {
     const durationSeconds = 15.015;
-    const primary = state.primaryContent;
-    const assets = state.assets || [];
-    const includePrimary = !isPrimaryContentAtDefaults() && hasSignaling();
+    const option = getPreviewOption();
+    const emit = !!option.adType;
+    const primary = option.primaryContent;
+    const assets = emit ? (option.assets || []) : [];
+    const includePrimary = emit && !isPrimaryContentAtDefaults(primary);
 
     const primaryXml = includePrimary
         ? (() => {
@@ -1129,7 +1208,7 @@ function buildDashXml() {
         '     profiles="urn:svta:dash:profile:overlays:2026">\n\n' +
         `    <Period id="overlay-video" duration="PT${durationSeconds.toFixed(3)}S">\n\n` +
         (overlayInner
-            ? `        <svta:ConcurrentElements layoutMode="${escapeXml(dashLayoutMode())}">\n` +
+            ? `        <svta:ConcurrentElements layoutMode="${escapeXml(getPresentationType(option.adType))}">\n` +
               `${overlayInner}\n` +
               '        </svta:ConcurrentElements>\n'
             : '') +
@@ -1138,19 +1217,23 @@ function buildDashXml() {
     );
 }
 
-// With no adType selected and no assets there is nothing concurrent to signal, so
-// the asset is emitted without X-AD-CREATIVE-SIGNALING (no payload object).
-function hasSignaling() {
-    return !!state.adType || state.assets.length > 0;
+// Only layout options with an adType are emitted. With none, there is nothing
+// concurrent to signal and the asset has no X-AD-CREATIVE-SIGNALING (no payload).
+function getEmittedOptions() {
+    return state.layoutOptions.filter(option => option.adType);
 }
 
-function buildPrimaryContentLayout() {
-    if (isPrimaryContentAtDefaults()) return null;
-    const pc = { zDepth: state.primaryContent.zDepth };
-    if (state.primaryContent.volume !== undefined) {
-        pc.volume = state.primaryContent.volume;
+function hasSignaling() {
+    return getEmittedOptions().length > 0;
+}
+
+function buildPrimaryContentLayout(primaryContent) {
+    if (isPrimaryContentAtDefaults(primaryContent)) return null;
+    const pc = { zDepth: primaryContent.zDepth };
+    if (primaryContent.volume !== undefined) {
+        pc.volume = primaryContent.volume;
     }
-    pc.viewport = formatViewport(state.primaryContent.viewport);
+    pc.viewport = formatViewport(primaryContent.viewport);
     return pc;
 }
 
@@ -1168,35 +1251,15 @@ function buildAssetLayout(asset) {
     return out;
 }
 
-// One layoutOptions entry per distinct asset option type, in order of first use.
-// Assets without an option type are left out. A selected adType with no assets yet
-// still yields its option with an empty assets array. The primary content layout is
-// shared by every option.
+// One layoutOptions entry per tab, in tab order (the order of preference).
 function buildLayoutOptions() {
-    const groups = [];
-    const byType = {};
-    const presentationType = getPresentationType(state.adType);
-    if (presentationType) {
-        byType[presentationType] = { type: presentationType, assets: [] };
-        groups.push(byType[presentationType]);
-    }
-    state.assets.forEach(asset => {
-        if (!asset.optionType) return;
-        if (!byType[asset.optionType]) {
-            byType[asset.optionType] = { type: asset.optionType, assets: [] };
-            groups.push(byType[asset.optionType]);
-        }
-        byType[asset.optionType].assets.push(buildAssetLayout(asset));
+    return getEmittedOptions().map(option => {
+        const layout = {};
+        const pc = buildPrimaryContentLayout(option.primaryContent);
+        if (pc) layout.primaryContent = pc;
+        layout.assets = option.assets.map(buildAssetLayout);
+        return { type: getPresentationType(option.adType), layout };
     });
-    const pc = buildPrimaryContentLayout();
-    return groups
-        .filter(g => g.assets.length || g.type === presentationType)
-        .map(g => {
-            const layout = {};
-            if (pc) layout.primaryContent = { ...pc };
-            layout.assets = g.assets;
-            return { type: g.type, layout };
-        });
 }
 
 function updateJSON() {
@@ -1251,7 +1314,8 @@ window.updatePrimaryContent = updatePrimaryContent;
 window.updatePrimaryContentViewportField = updatePrimaryContentViewportField;
 window.updatePrimaryContentVolume = updatePrimaryContentVolume;
 window.updateAssetVolume = updateAssetVolume;
-window.updateAssetOptionType = updateAssetOptionType;
+window.selectLayoutOption = selectLayoutOption;
+window.deleteLayoutOption = deleteLayoutOption;
 window.togglePrimaryContentForm = togglePrimaryContentForm;
 window.updateAssetLabel = updateAssetLabel;
 window.togglePlayerSize = togglePlayerSize;
