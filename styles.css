@@ -458,6 +458,40 @@ body.player-resizing * {
     font-style: italic;
 }
 
+.layout-tab {
+    position: relative;
+}
+
+.layout-tab[draggable="true"] {
+    cursor: grab;
+}
+
+.layout-tab.dragging {
+    opacity: 0.45;
+    cursor: grabbing;
+}
+
+/* Drop marker: a bar on the side the dragged tab will be inserted */
+.layout-tab.drop-before::before,
+.layout-tab.drop-after::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    width: 3px;
+    border-radius: 2px;
+    background: #1976d2;
+    pointer-events: none;
+}
+
+.layout-tab.drop-before::before {
+    left: -4px;
+}
+
+.layout-tab.drop-after::after {
+    right: -4px;
+}
+
 .layout-tab:focus-visible {
     outline: 2px solid #1976d2;
     outline-offset: -2px;

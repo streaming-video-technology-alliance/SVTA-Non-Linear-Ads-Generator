@@ -50,7 +50,7 @@ The Asset Form starts with one layout option (tab **1**). Each tab is one entry 
    - **zDepth**: Stacking order; higher values are drawn on top
    - **volume**: Initial volume, 0–100
 4. Optionally expand **Primary Content** to change the tab's primary content viewport, zDepth or volume.
-5. Click **ADD LAYOUT** to add another option (a fallback presentation), and set it up the same way. Delete an option with the **×** on its tab; the last remaining tab cannot be deleted.
+5. Click **ADD LAYOUT** to add another option (a fallback presentation), and set it up the same way. Delete an option with the **×** on its tab; the last remaining tab cannot be deleted. Drag a tab to reorder the options, or focus a tab and press **Alt + ←/→**. The order of the tabs is the order of preference in `layoutOptions`.
 6. Choose the option to render with the dropdown in the Preview Player header. Clicking a tab also renders that tab.
 7. Copy the generated output from the Data Preview.
 

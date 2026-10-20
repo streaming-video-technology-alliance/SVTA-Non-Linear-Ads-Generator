@@ -197,16 +197,115 @@ function renderLayoutTabs() {
         const label = escapeAttr(layoutOptionLabel(option, index));
         return `
             <div class="layout-tab${active ? ' active' : ''}${incomplete ? ' incomplete' : ''}"
-                role="tab" aria-selected="${active}" tabindex="0"
-                title="${incomplete ? 'No adType: this layout option is not emitted' : label}"
+                role="tab" aria-selected="${active}" tabindex="0" draggable="true" data-index="${index}"
+                title="${incomplete ? 'No adType: this layout option is not emitted' : label} (drag or Alt+←/→ to reorder)"
                 onclick="selectLayoutOption(${index})"
-                onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectLayoutOption(${index}); }">
+                onkeydown="handleLayoutTabKeydown(event, ${index})">
                 <span class="layout-tab-label">${label}</span>
                 ${canDelete ? `<button type="button" class="layout-tab-delete" title="Delete layout option ${index + 1}"
                     aria-label="Delete layout option ${index + 1}"
                     onclick="event.stopPropagation(); deleteLayoutOption(${index})">×</button>` : ''}
             </div>`;
     }).join('');
+}
+
+// ---- Tab reordering (drag and drop, or Alt+Left/Right on a focused tab) ----
+// Tab order is the order of preference of layoutOptions.
+
+// Moves the option at `from` so it ends up at index `to` (in the final array),
+// keeping the edited tab and the previewed option on the same options.
+function moveLayoutOption(from, to) {
+    const options = state.layoutOptions;
+    if (from === to || from < 0 || to < 0 || from >= options.length || to >= options.length) return false;
+    const active = options[state.activeOption];
+    const preview = options[state.previewOption];
+    const [moved] = options.splice(from, 1);
+    options.splice(to, 0, moved);
+    state.activeOption = options.indexOf(active);
+    state.previewOption = options.indexOf(preview);
+    renderLayoutOptionsUI();
+    return true;
+}
+
+function handleLayoutTabKeydown(event, index) {
+    if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        selectLayoutOption(index);
+        return;
+    }
+    if (event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+        event.preventDefault();
+        const to = index + (event.key === 'ArrowLeft' ? -1 : 1);
+        if (moveLayoutOption(index, to)) {
+            const tab = document.querySelector(`.layout-tab[data-index="${to}"]`);
+            if (tab) tab.focus();
+        }
+    }
+}
+
+let draggedTabIndex = null;
+
+function clearTabDropMarkers() {
+    document.querySelectorAll('.layout-tab.drop-before, .layout-tab.drop-after')
+        .forEach(t => t.classList.remove('drop-before', 'drop-after'));
+}
+
+// Drop position relative to the tab under the pointer: before or after it.
+function tabDropSide(tab, clientX) {
+    const rect = tab.getBoundingClientRect();
+    return clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+}
+
+function initializeLayoutTabDragAndDrop() {
+    const tabs = document.getElementById('layoutTabs');
+    if (!tabs) return;
+
+    tabs.addEventListener('dragstart', e => {
+        const tab = e.target.closest('.layout-tab');
+        if (!tab) return;
+        draggedTabIndex = parseInt(tab.dataset.index, 10);
+        tab.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        // Firefox needs data set for the drag to start
+        e.dataTransfer.setData('text/plain', String(draggedTabIndex));
+    });
+
+    tabs.addEventListener('dragover', e => {
+        if (draggedTabIndex === null) return;
+        const tab = e.target.closest('.layout-tab');
+        if (!tab) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const side = tabDropSide(tab, e.clientX);
+        clearTabDropMarkers();
+        tab.classList.add(side === 'before' ? 'drop-before' : 'drop-after');
+    });
+
+    tabs.addEventListener('dragleave', e => {
+        if (!tabs.contains(e.relatedTarget)) clearTabDropMarkers();
+    });
+
+    tabs.addEventListener('drop', e => {
+        if (draggedTabIndex === null) return;
+        const tab = e.target.closest('.layout-tab');
+        e.preventDefault();
+        clearTabDropMarkers();
+        if (!tab) return;
+        const target = parseInt(tab.dataset.index, 10);
+        const side = tabDropSide(tab, e.clientX);
+        // Insertion point in the array before removal, then adjust for the removal
+        let to = side === 'before' ? target : target + 1;
+        if (draggedTabIndex < to) to -= 1;
+        const from = draggedTabIndex;
+        draggedTabIndex = null;
+        moveLayoutOption(from, to);
+    });
+
+    tabs.addEventListener('dragend', () => {
+        draggedTabIndex = null;
+        clearTabDropMarkers();
+        document.querySelectorAll('.layout-tab.dragging').forEach(t => t.classList.remove('dragging'));
+    });
 }
 
 function renderPreviewLayoutSelect() {
@@ -345,6 +444,7 @@ function initializeApp() {
     document.getElementById('adType').addEventListener('change', handleAdTypeChange);
     document.getElementById('addAssetBtn').addEventListener('click', handleAddAsset);
     document.getElementById('addLayoutBtn').addEventListener('click', handleAddLayout);
+    initializeLayoutTabDragAndDrop();
     document.getElementById('previewLayoutSelect').addEventListener('change', handlePreviewLayoutChange);
 
     const formatRadios = document.querySelectorAll('input[name="assetListFormat"]');
@@ -1320,6 +1420,7 @@ window.updatePrimaryContentVolume = updatePrimaryContentVolume;
 window.updateAssetVolume = updateAssetVolume;
 window.selectLayoutOption = selectLayoutOption;
 window.deleteLayoutOption = deleteLayoutOption;
+window.handleLayoutTabKeydown = handleLayoutTabKeydown;
 window.togglePrimaryContentForm = togglePrimaryContentForm;
 window.updateAssetLabel = updateAssetLabel;
 window.togglePlayerSize = togglePlayerSize;
