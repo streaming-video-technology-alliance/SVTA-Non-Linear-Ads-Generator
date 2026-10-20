@@ -44,6 +44,7 @@
             <h2>Asset Form</h2>
             <div class="form-controls">
                 <div class="asset-form-header-row">
+                    <div class="asset-form-header-controls">
                     <div class="form-group form-group-inline">
                         <label for="adType">adType:</label>
                         <select id="adType" class="form-control">
@@ -54,6 +55,11 @@
                             <option value="squeezebackLShape">squeezebackLShape</option>
                             <option value="multiView">multiView</option>
                         </select>
+                    </div>
+                    <div class="form-group form-group-inline" id="layoutVariantGroup" hidden>
+                        <label for="layoutVariant">layout:</label>
+                        <select id="layoutVariant" class="form-control"></select>
+                    </div>
                     </div>
                     <button id="addAssetBtn" class="btn-primary">ADD ASSET</button>
                 </div>

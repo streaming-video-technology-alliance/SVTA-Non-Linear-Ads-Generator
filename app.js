@@ -1,11 +1,17 @@
 // Per adType: primary content layout and assets added on the first ADD ASSET click.
+// Defaults follow SVTA2053 v4 (HLS update), 5.3.2 Table 20 "Default Layouts", which
+// aligns in structure and position with the IAB Tech Lab Ad Format Guidelines for
+// Digital Video & CTV v2.0. multiView keeps the four-view layout (Table 20 / Table 22).
 // Viewport values are top, right, bottom, left as % of the player area.
 // Subsequent ADD ASSET clicks add a single cornerOverlay-style asset.
+// Volume is not part of any preset: primary content inherits the volume already
+// playing, and additional assets default to 0 (muted), per AssetLayout (Table 11).
+// An adType with several valid layouts lists them in AD_TYPE_VARIANTS; the first is
+// the default and is stored under the adType key, the others under "adType:variant".
 const AD_TYPE_LAYOUTS = {
     cornerOverlay: {
         primaryContent: {
             zDepth: 0,
-            volume: 100,
             viewport: { top: 0, right: 0, bottom: 0, left: 0 }
         },
         newAssetDefaults: [
@@ -15,7 +21,6 @@ const AD_TYPE_LAYOUTS = {
     lowerThirdOverlay: {
         primaryContent: {
             zDepth: 0,
-            volume: 100,
             viewport: { top: 0, right: 0, bottom: 0, left: 0 }
         },
         newAssetDefaults: [
@@ -25,7 +30,6 @@ const AD_TYPE_LAYOUTS = {
     squeezebackFrame: {
         primaryContent: {
             zDepth: 1,
-            volume: 100,
             viewport: { top: 20, right: 20, bottom: 20, left: 20 }
         },
         newAssetDefaults: [
@@ -35,17 +39,30 @@ const AD_TYPE_LAYOUTS = {
     squeezebackDoubleBox: {
         primaryContent: {
             zDepth: 0,
-            volume: 100,
             viewport: { top: 25, right: 50, bottom: 25, left: 0 }
         },
         newAssetDefaults: [
-            { id: 'adOverlay', viewport: { top: 25, right: 0, bottom: 25, left: 50 } }
+            { id: 'adSideBySide', viewport: { top: 25, right: 0, bottom: 25, left: 50 }, zDepth: 1 }
         ]
     },
+    // Backplate form (Table 20): one full-frame underlay whose artwork forms the L,
+    // with the primary content scaled to the upper right on top of it. Needs two
+    // video decoders, versus three for the two-bar form (5.3.3).
     squeezebackLShape: {
         primaryContent: {
+            zDepth: 1,
+            viewport: { top: 0, right: 0, bottom: 25, left: 25 }
+        },
+        newAssetDefaults: [
+            { id: 'lBackplate', viewport: { top: 0, right: 0, bottom: 0, left: 0 }, zDepth: 0 }
+        ]
+    },
+    // Two-bar form (5.3.2, as emitted by the Layout Controller): primary content in
+    // the upper left with separate vertical and horizontal ad bars. Needs three
+    // video decoders when both bars are video.
+    'squeezebackLShape:twoBar': {
+        primaryContent: {
             zDepth: 0,
-            volume: 100,
             viewport: { top: 0, right: 40, bottom: 40, left: 0 }
         },
         newAssetDefaults: [
@@ -56,7 +73,6 @@ const AD_TYPE_LAYOUTS = {
     multiView: {
         primaryContent: {
             zDepth: 0,
-            volume: 100,
             viewport: { top: 0, right: 50, bottom: 50, left: 0 }
         },
         newAssetDefaults: [
@@ -67,8 +83,45 @@ const AD_TYPE_LAYOUTS = {
     }
 };
 
-function getAdTypeLayout(adType) {
+// Layout variants per adType, first entry is the default (stored under the adType key).
+const AD_TYPE_VARIANTS = {
+    squeezebackLShape: [
+        { key: 'backplate', label: 'backplate (default)' },
+        { key: 'twoBar', label: 'two bars' }
+    ]
+};
+
+function getAdTypeVariants(adType) {
+    return AD_TYPE_VARIANTS[adType] || [];
+}
+
+function getAdTypeLayout(adType, variant) {
+    const variants = getAdTypeVariants(adType);
+    if (variant && variants.length && variant !== variants[0].key) {
+        const keyed = AD_TYPE_LAYOUTS[`${adType}:${variant}`];
+        if (keyed) return keyed;
+    }
     return AD_TYPE_LAYOUTS[adType] || AD_TYPE_LAYOUTS.cornerOverlay;
+}
+
+function renderLayoutVariantSelect() {
+    const group = document.getElementById('layoutVariantGroup');
+    const select = document.getElementById('layoutVariant');
+    if (!group || !select) return;
+    const variants = getAdTypeVariants(state.adType);
+    if (!variants.length) {
+        group.hidden = true;
+        select.innerHTML = '';
+        state.layoutVariant = null;
+        return;
+    }
+    if (!variants.some(v => v.key === state.layoutVariant)) {
+        state.layoutVariant = variants[0].key;
+    }
+    select.innerHTML = variants.map(v =>
+        `<option value="${v.key}" ${v.key === state.layoutVariant ? 'selected' : ''}>${v.label}</option>`
+    ).join('');
+    group.hidden = false;
 }
 
 function cloneViewport(vp) {
@@ -76,13 +129,16 @@ function cloneViewport(vp) {
 }
 
 function applyAdTypeLayout(adType) {
-    const preset = getAdTypeLayout(adType);
+    renderLayoutVariantSelect();
+    const preset = getAdTypeLayout(adType, state.layoutVariant);
 
     state.primaryContent = {
         zDepth: preset.primaryContent.zDepth,
-        volume: preset.primaryContent.volume,
         viewport: cloneViewport(preset.primaryContent.viewport)
     };
+    if (preset.primaryContent.volume !== undefined) {
+        state.primaryContent.volume = preset.primaryContent.volume;
+    }
     state.assets = [];
 
     const container = document.getElementById('assetForms');
@@ -100,11 +156,11 @@ function applyAdTypeLayout(adType) {
 // Application state
 const state = {
     adType: 'cornerOverlay',
+    layoutVariant: null,
     outputFormat: 'hls', // 'hls' (JSON) or 'dash' (XML)
     assets: [],
     primaryContent: {
         zDepth: 0,
-        volume: 100,
         viewport: { top: 0, right: 0, bottom: 0, left: 0 }
     },
     playerSizeLocked: false,
@@ -118,8 +174,19 @@ const mimeTypes = [
     'application/dash+xml',
     'video/mp4',
     'image/png',
-    'image/jpeg'
+    'image/jpeg',
+    'image/svg+xml'
 ];
+
+// Additional assets start muted unless a volume is declared (AssetLayout, Table 11).
+const ASSET_DEFAULT_VOLUME = 0;
+
+function parseVolume(value) {
+    if (value === '' || value === null || value === undefined) return undefined;
+    const n = parseInt(value, 10);
+    if (isNaN(n)) return undefined;
+    return Math.max(0, Math.min(100, n));
+}
 
 // Viewport helpers (CSS layout viewport: "Top Right Bottom Left" in % of player area)
 function clampViewportValue(v) {
@@ -140,9 +207,10 @@ function viewportHasInset(vp) {
 
 // Defaults that primaryContent is initialized with; if the user hasn't changed
 // any of them, primaryContent is omitted from the Data Preview output.
+// Primary content volume has no default value: when unset it inherits whatever is
+// currently playing and is not emitted; once set, it is always emitted.
 const PRIMARY_CONTENT_DEFAULTS = {
     zDepth: 0,
-    volume: 100,
     viewport: { top: 0, right: 0, bottom: 0, left: 0 }
 };
 
@@ -151,7 +219,7 @@ function isPrimaryContentAtDefaults() {
     const vp = pc.viewport || {};
     const dvp = PRIMARY_CONTENT_DEFAULTS.viewport;
     return pc.zDepth === PRIMARY_CONTENT_DEFAULTS.zDepth
-        && pc.volume === PRIMARY_CONTENT_DEFAULTS.volume
+        && pc.volume === undefined
         && vp.top === dvp.top
         && vp.right === dvp.right
         && vp.bottom === dvp.bottom
@@ -166,6 +234,10 @@ document.addEventListener('DOMContentLoaded', () => {
 function initializeApp() {
     // Set up event listeners
     document.getElementById('adType').addEventListener('change', handleAdTypeChange);
+    const layoutVariantSelect = document.getElementById('layoutVariant');
+    if (layoutVariantSelect) {
+        layoutVariantSelect.addEventListener('change', handleLayoutVariantChange);
+    }
     document.getElementById('addAssetBtn').addEventListener('click', handleAddAsset);
 
     const formatRadios = document.querySelectorAll('input[name="assetListFormat"]');
@@ -225,6 +297,12 @@ function initializeApp() {
 
 function handleAdTypeChange(e) {
     state.adType = e.target.value;
+    state.layoutVariant = null;
+    applyAdTypeLayout(state.adType);
+}
+
+function handleLayoutVariantChange(e) {
+    state.layoutVariant = e.target.value;
     applyAdTypeLayout(state.adType);
 }
 
@@ -512,8 +590,10 @@ function renderPrimaryContentForm() {
                     </div>
                     <div class="form-group form-group-compact">
                         <label for="primary-volume">volume:</label>
-                        <input type="number" id="primary-volume" value="${pc.volume}" 
-                            min="0" max="100" onchange="updatePrimaryContent('volume', parseInt(this.value) || 0)">
+                        <input type="number" id="primary-volume" value="${pc.volume !== undefined ? pc.volume : ''}" 
+                            min="0" max="100" placeholder="inherit"
+                            title="Leave empty to keep the volume already playing"
+                            onchange="updatePrimaryContentVolume(this.value, this)">
                     </div>
                 </div>
                 </div>
@@ -546,6 +626,18 @@ function updatePrimaryContent(property, value) {
     renderPreview();
 }
 
+function updatePrimaryContentVolume(value, inputEl) {
+    const volume = parseVolume(value);
+    if (volume === undefined) {
+        delete state.primaryContent.volume;
+    } else {
+        state.primaryContent.volume = volume;
+    }
+    if (inputEl) inputEl.value = volume !== undefined ? volume : '';
+    updateJSON();
+    renderPreview();
+}
+
 function updatePrimaryContentViewportField(field, value, inputEl) {
     if (!state.primaryContent.viewport) {
         state.primaryContent.viewport = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -569,13 +661,13 @@ function createAssetFromTemplate(template) {
         uri: '',
         viewport: cloneViewport(template.viewport),
         zDepth: defaultZDepth,
-        volume: 100
+        volume: ASSET_DEFAULT_VOLUME
     };
 }
 
 function handleAddAsset() {
     if (state.assets.length === 0) {
-        const defaults = getAdTypeLayout(state.adType).newAssetDefaults || [];
+        const defaults = getAdTypeLayout(state.adType, state.layoutVariant).newAssetDefaults || [];
         defaults.forEach(template => {
             const newAsset = createAssetFromTemplate(template);
             state.assets.push(newAsset);
@@ -660,7 +752,7 @@ function renderAssetForm(asset, index) {
                 <div class="form-group form-group-compact">
                     <label for="asset-volume-${index}">volume:</label>
                     <input type="number" id="asset-volume-${index}" value="${asset.volume}" 
-                        min="0" max="100" onchange="updateAsset(${index}, 'volume', parseInt(this.value) || 0)">
+                        min="0" max="100" onchange="updateAssetVolume(${index}, this.value, this)">
                 </div>
             </div>
         </div>
@@ -679,6 +771,13 @@ function updateAsset(index, property, value) {
         // Use setTimeout to allow DOM to update before adjusting height
         setTimeout(adjustPreviewHeight, 0);
     }
+}
+
+function updateAssetVolume(index, value, inputEl) {
+    const parsed = parseVolume(value);
+    const volume = parsed !== undefined ? parsed : ASSET_DEFAULT_VOLUME;
+    if (inputEl) inputEl.value = volume;
+    updateAsset(index, 'volume', volume);
 }
 
 function updateAssetViewportField(index, field, value, inputEl) {
@@ -959,14 +1058,13 @@ function buildDashXml() {
     const primaryXml = includePrimary
         ? (() => {
             const zDepth = primary.zDepth !== undefined ? primary.zDepth : 0;
-            const volume = primary.volume !== undefined ? primary.volume : 100;
             const viewport = escapeXml(formatViewport(primary.viewport));
             let xml = '';
             xml += '            <svta:PrimaryContent \n';
             xml += '                id="primaryContent"\n';
             xml += '                uri="[PATH TO PRIMARY CONTENT]"\n';
             xml += `                zDepth="${zDepth}"\n`;
-            if (volume !== 100) xml += `                volume="${volume}"\n`;
+            if (primary.volume !== undefined) xml += `                volume="${primary.volume}"\n`;
             xml += `                viewport="${viewport}"/>`;
             return xml;
         })()
@@ -974,7 +1072,7 @@ function buildDashXml() {
 
     const assetLines = assets.map(asset => {
         const zDepth = asset.zDepth !== undefined ? asset.zDepth : 0;
-        const volume = asset.volume !== undefined ? asset.volume : 100;
+        const volume = asset.volume !== undefined ? asset.volume : ASSET_DEFAULT_VOLUME;
         const viewport = escapeXml(formatViewport(asset.viewport));
         let xml = '';
         xml += '            <svta:Asset \n';
@@ -983,7 +1081,7 @@ function buildDashXml() {
         xml += `                uri="${escapeXml(asset.uri || '')}"\n`;
         xml += `                viewport="${viewport}"\n`;
         xml += `                zDepth="${zDepth}"`;
-        if (volume !== 100) xml += `\n                volume="${volume}"`;
+        if (volume !== ASSET_DEFAULT_VOLUME) xml += `\n                volume="${volume}"`;
         xml += '/>';
         return xml;
     }).join('\n');
@@ -1028,7 +1126,7 @@ function updateJSON() {
             const pc = {
                 zDepth: state.primaryContent.zDepth
             };
-            if (state.primaryContent.volume !== 100) {
+            if (state.primaryContent.volume !== undefined) {
                 pc.volume = state.primaryContent.volume;
             }
             pc.viewport = formatViewport(state.primaryContent.viewport);
@@ -1042,7 +1140,7 @@ function updateJSON() {
                 viewport: formatViewport(asset.viewport),
                 zDepth: asset.zDepth
             };
-            if (asset.volume !== 100) {
+            if (asset.volume !== undefined && asset.volume !== ASSET_DEFAULT_VOLUME) {
                 out.volume = asset.volume;
             }
             return out;
@@ -1056,10 +1154,14 @@ function updateJSON() {
                     version: 2,
                     type: "slot",
                     payload: [{
-                        type: state.adType,
                         start: 0.0,
                         duration: 15.015,
-                        layout: layout
+                        // Layout is carried only inside presentation options (SlotOption:
+                        // type + layout); the selected option's type replaces the slot's.
+                        layoutOptions: [{
+                            type: state.adType,
+                            layout: layout
+                        }]
                     }]
                 }
             }]
@@ -1084,6 +1186,8 @@ window.updateAssetViewportField = updateAssetViewportField;
 window.removeAsset = removeAsset;
 window.updatePrimaryContent = updatePrimaryContent;
 window.updatePrimaryContentViewportField = updatePrimaryContentViewportField;
+window.updatePrimaryContentVolume = updatePrimaryContentVolume;
+window.updateAssetVolume = updateAssetVolume;
 window.togglePrimaryContentForm = togglePrimaryContentForm;
 window.updateAssetLabel = updateAssetLabel;
 window.togglePlayerSize = togglePlayerSize;
